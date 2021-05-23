@@ -37,6 +37,7 @@ from traffic_light_detector_world import TrafficLightDetectorWorld
 
 
 
+
 ###############################################################################
 # CONFIGURABLE PARAMENTERS DURING EXAM
 ###############################################################################
@@ -130,14 +131,14 @@ camera_parameters['roll'] = 0
 
 camera_parameters_right = {}
 camera_parameters_right['x'] = 1.8
-camera_parameters_right['y'] = 0
+camera_parameters_right['y'] = 0.5
 camera_parameters_right['z'] = 1.3
 camera_parameters_right['width'] = 416
 camera_parameters_right['height'] = 416
 camera_parameters_right['fov'] = 60
 
 camera_parameters_right['yaw'] = 0 
-camera_parameters_right['pitch'] = 10
+camera_parameters_right['pitch'] = 0
 camera_parameters_right['roll'] = 0
 
 def rotate_x(angle):
@@ -263,6 +264,16 @@ def make_carla_settings(args):
     camera1.set_rotation(cam_yaw, cam_pitch, cam_roll)
 
     settings.add_sensor(camera1)
+
+    # Segmentation Camera Right
+    camera1r = Camera("SegmentationRight", PostProcessing="SemanticSegmentation")
+
+    camera1r.set_image_size(camera_width_right, camera_height_right)
+    camera1r.set(FOV=camera_fov_right)
+    camera1r.set_position(cam_x_pos_right, cam_y_pos_right, cam_height_right)
+    camera1r.set_rotation(cam_yaw_right, cam_pitch_right, cam_roll_right)
+
+    settings.add_sensor(camera1r)
 
     # Depth Camera
     camera2 = Camera("Depth", PostProcessing="Depth")
@@ -449,7 +460,6 @@ def get_map(scene):
     base_dir = "..\\carla\\planner"
     path = os.path.join(base_dir, map_name)
     print(path)
-    print("Current: ", os.listdir())
     img = cv2.imread(path)
     
     carla_map = CarlaMap("Town01", 0.1653, 50)
@@ -910,32 +920,46 @@ def exec_waypoint_nav_demo(args):
 
             # Visualize Image 
             segmentation_data = sensor_data.get('Segmentation', None)
+            segmentation_data_r = sensor_data.get('SegmentationRight', None)
             camera_data = sensor_data.get('CameraRGB', None)
             depth_data = sensor_data.get('Depth', None)
             camera_data_r = sensor_data.get('CameraRGBRight', None)
             depth_data_r = sensor_data.get("DepthRight", None)
 
-            if camera_data_r is not None and depth_data_r is not None:
+            if camera_data_r is not None and depth_data_r is not None and segmentation_data_r is not None:
                 camera_data_r = to_bgra_array(camera_data_r)
                 depth_data_r = depth_to_array(depth_data_r)
                 bgr_img_r = cv2.cvtColor(camera_data_r, cv2.COLOR_BGRA2BGR)
-                vehicle_bbox_traffic_light_r = tl_right_detector.detect(bgr_img_r, depth_data_r)
+
+
+                bbox = tl_right_detector.get_enlarged_bbox()
+                image_cityscapes_Segmentationr = labels_to_cityscapes_palette(sensor_data["SegmentationRight"])
+
+                image_cityscapes_Segmentationr = np.array(image_cityscapes_Segmentationr,dtype=np.uint8)
+                if bbox is not None:
+                    cv2.rectangle(image_cityscapes_Segmentationr, (bbox[0], bbox[1]), (bbox[2], bbox[3]), (0,0,0), thickness=5)
+                
+                cv2.imshow("CameraSegmentationRight", image_cityscapes_Segmentationr)
+                cv2.waitKey(10)
+
+                vehicle_bbox_traffic_light_r = tl_right_detector.detect(bgr_img_r, depth_data_r, seg_img=labels_to_array(segmentation_data_r))
                 camera_data_r = tl_right_detector.draw_enlarged_boxes_on_image(camera_data_r)
                 cv2.imshow("CameraRight", camera_data_r)
                 cv2.waitKey(10)
 
-            if segmentation_data is not None:
+
+
+            if camera_data is not None and depth_data is not None and segmentation_data is not None:
                 image_cityscapes_Segmentation = labels_to_cityscapes_palette(sensor_data["Segmentation"])
                 image_cityscapes_Segmentation = np.array(image_cityscapes_Segmentation,dtype=np.uint8)
                 cv2.imshow("CameraSegmentation", image_cityscapes_Segmentation)
                 cv2.waitKey(10)
 
-            if camera_data is not None and depth_data is not None:
                 camera_data = to_bgra_array(camera_data)
                 depth_data = depth_to_array(depth_data)  
                 bgr_img = cv2.cvtColor(camera_data, cv2.COLOR_BGRA2BGR)
 
-                vehicle_bbox_traffic_light = tl_detector.detect(bgr_img, depth_data)
+                vehicle_bbox_traffic_light = tl_detector.detect(bgr_img, depth_data, seg_img=labels_to_array(segmentation_data))
                 camera_data = tl_detector.draw_enlarged_boxes_on_image(camera_data)
 
                 cv2.imshow("CameraRGB", camera_data)
@@ -969,7 +993,7 @@ def exec_waypoint_nav_demo(args):
 
 
                 if abs(x) < 40 and abs(y)<40:
-                    visualize_point(map, x_global, y_global, z, img_map, color=(0,225,225))
+                    visualize_point(map, x_global, y_global, z, img_map, color=(255,225,225))
 
             print("Local coordinates traffic lights: ", vehicle_bbox_traffic_light)
             #Visualize traffic light point on world
@@ -994,7 +1018,7 @@ def exec_waypoint_nav_demo(args):
                 
 
 
-                if abs(xr) < 40 and abs(yr)<40:
+                if abs(xr) < 60 and abs(yr)<60:
                     visualize_point(map, x_globalr, y_globalr, zr, img_map, color=(225,225,0))
             print("Local coordinates traffic lights right: ", vehicle_bbox_traffic_light_r)
 

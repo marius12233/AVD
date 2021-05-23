@@ -2,6 +2,7 @@ import traffic_light_detection_module
 from traffic_light_detection_module.predict import *
 import cv2
 import numpy as np
+from carla.image_converter import labels_to_array
 
 def load_model():
     config = get_config(os.path.join("traffic_light_detection_module", "config.json"))
@@ -20,7 +21,9 @@ class TrafficLightDetector:
         #self._min_frames_ok = 3 #minimum number of frames 
         self._max_frame_ok = 2 #number of consecutive frames to detect traffic light 
         self._counter_consecutive_detection = 0
+        #self.centerPoint=0
     
+
     def find_traffic_light(self, img):
         if img is None:
             return None
@@ -48,20 +51,49 @@ class TrafficLightDetector:
 
         return self.__bbox
 
+
     def get_bbox(self):
         return self.__bbox
     
+
     def get_enlarged_bbox(self):
         bbox = self.get_bbox()
         if bbox is None:
             return None
         xmin, ymin, xmax, ymax = bbox
         xmin-=20
-        #ymin-=50
+        ymin-=10
         xmax+=20
-        #ymax+=50
+        ymax+=10
         return (xmin, ymin, xmax, ymax)
-        
+    
+
+    def get_point_with_segmentation(self, seg_img=None):
+
+        bbox = self.get_enlarged_bbox()
+        if bbox is None or seg_img is None:
+            return None
+        #no 0,1,2,3
+        #road, lane-marking, traffic sign, sidewalk, fence, pole, wall, building, vegetation, vehicle, pedestrian, and other
+        tl_label = 12
+        crop_seg=seg_img[bbox[1]:bbox[3], bbox[0]:bbox[2]]
+        tl_mask = crop_seg==tl_label
+        tl_mask = tl_mask.astype(np.uint8)
+        # calculate x,y coordinate of center
+
+        if tl_mask.sum()==0:
+            return None
+
+        #Use moment to find the center of a mass
+        M=cv2.moments(tl_mask)
+        cX = int(M["m10"] / M["m00"])
+        cY = int(M["m01"] / M["m00"])
+        #self.centerPoint = (cX, cY)
+
+        cX = bbox[0] + cX
+        cY = bbox[1] + cY
+        return (cX, cY)
+
 
     def is_red(self):
         return self.__class
@@ -76,6 +108,7 @@ class TrafficLightDetector:
         bbox = self.get_bbox()
         cv2.rectangle(img, (bbox[0], bbox[1]), (bbox[2], bbox[3]), c)
         return img 
+
 
     def draw_enlarged_boxes_on_image(self, img):
         if self.__bbox is None or self.__img is None:

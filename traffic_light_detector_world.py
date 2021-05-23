@@ -87,20 +87,30 @@ class TrafficLightDetectorWorld(TrafficLightDetector):
         self.image_to_camera_frame = lambda object_camera_frame: np.dot(image_camera_frame , object_camera_frame)
  
     
-    def detect(self, image, depth_data, speed_limit = 5.0):
+    def detect(self, image, depth_data, speed_limit = 5.0, seg_img=None):
         #height, width, _ = image.shape
         vehicle_frame_list = []
 
+
         self.find_traffic_light(image)
         points = []
-        bbox = self.get_enlarged_bbox()
-        if bbox is None:
-            return None
+
+        #For now we are just using only 1 point
+        if seg_img is None: #Take the center point of the bbox if there isn't seg map
+            bbox = self.get_enlarged_bbox()
+            
+            if bbox is None:
+                return None
+            
+            x = bbox[0] + (bbox[2] - bbox[0])//2 #take the center point of bbox
+            y = bbox[1] + (bbox[3] - bbox[1])//2
+            
+        else:
+            point = self.get_point_with_segmentation(seg_img) #make use of seg map to improve precision
+            if point is None:
+                return
+            x,y = point
         
-        #points.append(bbox[:2])
-        #points.append(bbox[2:])
-        x = bbox[0] + (bbox[2] - bbox[0])//2 #take the center point
-        y = bbox[1] + (bbox[3] - bbox[1])//2
         points.append((x,y))
 
 
