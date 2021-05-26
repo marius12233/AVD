@@ -12,6 +12,7 @@ import math
 import numpy as np
 import csv
 import matplotlib.pyplot as plt
+from numpy.core.defchararray import index
 import controller2d
 import configparser 
 import local_planner
@@ -29,29 +30,28 @@ from carla.settings   import CarlaSettings
 from carla.tcp        import TCPConnectionError
 from carla.controller import utils
 from carla.sensor import Camera
-from carla.image_converter import *#labels_to_array, depth_to_array, to_bgra_array
+from carla.image_converter import *
 from carla.planner.city_track import CityTrack
 from carla.planner.map import CarlaMap
 from traffic_light_detector import TrafficLightDetector, load_model
 from traffic_light_detector_world import TrafficLightDetectorWorld
-
-
+from traffic_light_tracking import TrafficLightTracking
 
 
 ###############################################################################
 # CONFIGURABLE PARAMENTERS DURING EXAM
 ###############################################################################
-PLAYER_START_INDEX = 8          # spawn index for player
-DESTINATION_INDEX = 100         # Setting a Destination HERE
-NUM_PEDESTRIANS        = 30      # total number of pedestrians to spawn
-NUM_VEHICLES           = 30      # total number of vehicles to spawn
+PLAYER_START_INDEX = 7          #  spawn index for player
+DESTINATION_INDEX = 15        # Setting a Destination HERE
+NUM_PEDESTRIANS        = 10#30      # total number of pedestrians to spawn
+NUM_VEHICLES           = 10#30      # total number of vehicles to spawn
 SEED_PEDESTRIANS       = 0      # seed for pedestrian spawn randomizer
 SEED_VEHICLES          = 0     # seed for vehicle spawn randomizer
 ###############################################################################àà
 
-ITER_FOR_SIM_TIMESTEP  = 10     # no. iterations to compute approx sim timestep
+ITER_FOR_SIM_TIMESTEP  = 5     # no. iterations to compute approx sim timestep
 WAIT_TIME_BEFORE_START = 1.00   # game seconds (time before controller start)
-TOTAL_RUN_TIME         = 100.00 # game seconds (total runtime before sim end)
+TOTAL_RUN_TIME         = 5000.00 # game seconds (total runtime before sim end)
 TOTAL_FRAME_BUFFER     = 300    # number of frames to buffer after total runtime
 CLIENT_WAIT_TIME       = 3      # wait time for client before starting episode
                                 # used to make sure the server loads
@@ -138,7 +138,7 @@ camera_parameters_right['height'] = 416
 camera_parameters_right['fov'] = 60
 
 camera_parameters_right['yaw'] = 0 
-camera_parameters_right['pitch'] = 0
+camera_parameters_right['pitch'] = 0#20
 camera_parameters_right['roll'] = 0
 
 def rotate_x(angle):
@@ -216,6 +216,7 @@ def make_carla_settings(args):
         SeedPedestrians=SEED_PEDESTRIANS,
         WeatherId=SIMWEATHER,
         QualityLevel=args.quality_level)
+
 
     # Common cameras settings
     cam_height = camera_parameters['z'] 
@@ -344,9 +345,13 @@ def get_current_pose(measurement):
     """
     x   = measurement.player_measurements.transform.location.x
     y   = measurement.player_measurements.transform.location.y
+    z   =  measurement.player_measurements.transform.location.z
+
+    pitch = math.radians(measurement.player_measurements.transform.rotation.pitch)
+    roll = math.radians(measurement.player_measurements.transform.rotation.roll)
     yaw = math.radians(measurement.player_measurements.transform.rotation.yaw)
 
-    return (x, y, yaw)
+    return (x, y, z, pitch, roll, yaw)
 
 def get_start_pos(scene):
     """Obtains player start x,y, yaw pose from the scene
@@ -452,6 +457,30 @@ def write_collisioncount_file(collided_list):
     with open(file_name, 'w') as collision_file: 
         collision_file.write(str(sum(collided_list)))
 
+def make_correction(waypoint,previuos_waypoint,desired_speed):
+    dx = waypoint[0] - previuos_waypoint[0]
+    dy = waypoint[1] - previuos_waypoint[1]
+
+    if dx < 0:
+        moveY = -1.5
+    elif dx > 0:
+        moveY = 1.5
+    else:
+        moveY = 0
+
+    if dy < 0:
+        moveX = 1.5
+    elif dy > 0:
+        moveX = -1.5
+    else:
+        moveX = 0
+    
+    waypoint_on_lane = waypoint
+    waypoint_on_lane[0] += moveX
+    waypoint_on_lane[1] += moveY
+    waypoint_on_lane[2] = desired_speed
+
+    return waypoint_on_lane
 
 ################ Visuaization map tools###################
 def get_map(scene):
@@ -465,12 +494,15 @@ def get_map(scene):
     carla_map = CarlaMap("Town01", 0.1653, 50)
     return carla_map, img
 
-def visualize_point(carla_map, x, y, z, img, color=None):
+def visualize_point(carla_map, x, y, z, img, color=None, t=-1, r=5, text=False):
     pixel = carla_map.convert_to_pixel([x,y,z])
-    x,y = pixel[:2]
+    xp,yp = pixel[:2]
     if not color:
         color = (0,255,0)
-    cv2.circle(img, (int(x),int(y)), 5, color, thickness=-1)
+    cv2.circle(img, (int(xp),int(yp)), r, color, thickness=-1)
+    if text:
+        string = "(" + str(x) + ", " +str(y)+")"
+        cv2.putText(img,  string,(int(xp),int(yp)), cv2.FONT_HERSHEY_SIMPLEX,1,color)
 
 def visualize_map(carla_map, img, measurements=None):
     if measurements:
@@ -582,8 +614,8 @@ def exec_waypoint_nav_demo(args):
             # Last stamp
             if i == num_iterations - 1:
                 sim_duration = measurement_data.game_timestamp / 1000.0 -\
-                               sim_start_stamp  
-        
+                               sim_start_stamp
+
         # Outputs average simulation timestep and computes how many frames
         # will elapse before the simulation should end based on various
         # parameters that we set in the beginning.
@@ -599,7 +631,7 @@ def exec_waypoint_nav_demo(args):
         # Store pose history starting from the start position
         measurement_data, sensor_data = client.read_data()
         start_timestamp = measurement_data.game_timestamp / 1000.0
-        start_x, start_y, start_yaw = get_current_pose(measurement_data)
+        start_x, start_y, start_z, start_pitch, start_roll, start_yaw = get_current_pose(measurement_data)
         send_control_command(client, throttle=0.0, steer=0, brake=1.0)
         x_history     = [start_x]
         y_history     = [start_y]
@@ -611,94 +643,120 @@ def exec_waypoint_nav_demo(args):
         #############################################
         # Settings Waypoints
         #############################################
+        starting    = scene.player_start_spots[PLAYER_START_INDEX]
         destination = scene.player_start_spots[DESTINATION_INDEX]
 
         # Starting position is the current position
-        source_pos = [start_x, start_y, destination.location.z]
-        source_ori = [0,0,start_yaw]
+        # (x, y, z, pitch, roll, yaw)
+        source_pos = [starting.location.x, starting.location.y, starting.location.z]
+        source_ori = [starting.orientation.x, starting.orientation.y]
         source = mission_planner.project_node(source_pos)
 
         # Destination position
         destination_pos = [destination.location.x, destination.location.y, destination.location.z]
-        destination_ori = [0,0,destination.rotation.yaw]
+        destination_ori = [destination.orientation.x, destination.orientation.y]
         destination = mission_planner.project_node(destination_pos)
 
         waypoints = []
         waypoints_route = mission_planner.compute_route(source, source_ori, destination, destination_ori)
-        desired_speed = 5.0
+        desired_speed = 10.0
+        turn_speed    = 2.5
 
+        intersection_nodes = mission_planner.get_intersection_nodes()
+        intersection_pair = []
+        turn_cooldown = 0
+        prev_x = False
+        prev_y = False
         # Put waypoints in the lane
         previuos_waypoint = mission_planner._map.convert_to_world(waypoints_route[0])
         for i in range(1,len(waypoints_route)):
             point = waypoints_route[i]
+
             waypoint = mission_planner._map.convert_to_world(point)
 
-            dx = waypoint[0] - previuos_waypoint[0]
-            dy = waypoint[1] - previuos_waypoint[1]
-
-            if dx < 0:
-                moveY = - 1.5
-            elif dx > 0:
-                moveY = 1.5
-            else:
-                moveY = 0
-
-            if dy < 0:
-                moveX = 1.5
-            elif dy > 0:
-                moveX = -1.5
-            else:
-                moveX = 0
-
-            #my code
-            """
-            if i<len(waypoints_route)-1:
-                next_waypoint = waypoints_route[i+1]
-                next_dx = next_waypoint[0] - waypoint[0]
-                next_dy = next_waypoint[1] - waypoint[1]
-                if dx > 0 and next_dy > 0: #intersection-left-bottom
-                    moveY += 1.5
-                    print("Moved waypoint: ", i)
+            current_waypoint = make_correction(waypoint,previuos_waypoint,desired_speed)
             
-            if i==7:
-                moveY+=1.
+            dx = current_waypoint[0] - previuos_waypoint[0]
+            dy = current_waypoint[1] - previuos_waypoint[1]
+
+            is_turn = ((prev_x and abs(dy) > 0.1) or (prev_y and abs(dx) > 0.1)) and not(abs(dx) > 0.1 and abs(dy) > 0.1)
+
+            prev_x = abs(dx) > 0.1
+            prev_y = abs(dy) > 0.1
+
+            if point in intersection_nodes:                
+                prev_start_intersection = mission_planner._map.convert_to_world(waypoints_route[i-2])
+                center_intersection = mission_planner._map.convert_to_world(waypoints_route[i])
+
+                start_intersection = mission_planner._map.convert_to_world(waypoints_route[i-1])
+                end_intersection = mission_planner._map.convert_to_world(waypoints_route[i+1])
+
+                start_intersection = make_correction(start_intersection,prev_start_intersection,turn_speed)
+                end_intersection = make_correction(end_intersection,center_intersection,turn_speed)
                 
-            if i==8:
-                moveY+=5.0
-                moveX+=3   
-            
-            if i==9:
-                moveY+=1.5
-                moveX+=0.5
-            """
+                dx = start_intersection[0] - end_intersection[0]
+                dy = start_intersection[1] - end_intersection[1]
+
+                if abs(dx) > 0 and abs(dy) > 0:
+                    intersection_pair.append((center_intersection,len(waypoints)))
+                    waypoints[-1][2] = turn_speed
+                    
+                    middle_point = [(start_intersection[0] + end_intersection[0]) /2,  (start_intersection[1] + end_intersection[1]) /2]
+
+                    centering = 0.75
+
+                    middle_intersection = [(centering*middle_point[0] + (1-centering)*center_intersection[0]),  (centering*middle_point[1] + (1-centering)*center_intersection[1])]
+
+                    # Point at intersection:
+                    A = [[start_intersection[0], start_intersection[1], 1],
+                         [end_intersection[0], end_intersection[1], 1],
+                         [middle_intersection[0], middle_intersection[1], 1]]
                         
-            
-            waypoint_on_lane = waypoint
-            waypoint_on_lane[0] += moveX
-            waypoint_on_lane[1] += moveY
-            waypoint_on_lane[2] = desired_speed
-            waypoints.append(waypoint_on_lane)
+                    b = [-start_intersection[0]**2 - start_intersection[1]**2, 
+                         -end_intersection[0]**2 - end_intersection[1]**2,
+                         -middle_intersection[0]**2 - middle_intersection[1]**2]
 
-            previuos_waypoint = waypoint
-        
-        previuos_waypoint = waypoints[0]
-        remove_i = -1
-        for i in range(1,len(waypoints)):
-            waypoint = waypoints[i]
-            
-            dx = waypoint[0] - previuos_waypoint[0]
-            dy = waypoint[1] - previuos_waypoint[1]
+                    coeffs = np.matmul(np.linalg.inv(A), b)
 
-            previuos_waypoint = waypoint
+                    x = start_intersection[0]
+                    
+                    center_x = -coeffs[0]/2
+                    center_y = -coeffs[1]/2
 
-            if abs(dx) > 0 and abs(dy) > 0:
-                remove_i = i
-        """
-        if remove_i != -1:
-            del waypoints[remove_i]
-            del waypoints[remove_i+1]
-            del waypoints[remove_i-1]
-        """
+                    r = sqrt(center_x**2 + center_y**2 - coeffs[2])
+
+                    theta_start = math.atan2((start_intersection[1] - center_y),(start_intersection[0] - center_x))
+                    theta_end = math.atan2((end_intersection[1] - center_y),(end_intersection[0] - center_x))
+
+                    theta = theta_start
+
+                    start_to_end = 1 if theta_start < theta_end else -1
+
+                    while (start_to_end==1 and theta < theta_end) or (start_to_end==-1 and theta > theta_end):
+                        waypoint_on_lane = [0,0,0]
+
+                        waypoint_on_lane[0] = center_x + r * cos(theta)
+                        waypoint_on_lane[1] = center_y + r * sin(theta)
+                        waypoint_on_lane[2] = turn_speed
+
+                        waypoints.append(waypoint_on_lane)
+                        theta += (abs(theta_end - theta_start) * start_to_end) / 10
+                    
+                    turn_cooldown = 4
+            else:
+                waypoint = mission_planner._map.convert_to_world(point)
+
+                if turn_cooldown > 0:
+                    target_speed = turn_speed
+                    turn_cooldown -= 1
+                else:
+                    target_speed = desired_speed
+                
+                waypoint_on_lane = make_correction(waypoint,previuos_waypoint,target_speed)
+
+                waypoints.append(waypoint_on_lane)
+
+                previuos_waypoint = waypoint
 
         waypoints = np.array(waypoints)
         #############################################
@@ -831,14 +889,13 @@ def exec_waypoint_nav_demo(args):
                                         STOP_LINE_BUFFER)
         bp = behavioural_planner.BehaviouralPlanner(BP_LOOKAHEAD_BASE,
                                                     LEAD_VEHICLE_LOOKAHEAD)
-        
         #############################################
         # Perception modules
         #############################################
         model = load_model()
         tl_detector = TrafficLightDetectorWorld(camera_parameters, model)
         tl_right_detector = TrafficLightDetectorWorld(camera_parameters_right, model)
-
+        tl_tracking = TrafficLightTracking()
         #############################################
         # Scenario Execution Loop
         #############################################
@@ -860,6 +917,7 @@ def exec_waypoint_nav_demo(args):
         map, img_map = get_map(scene)
         visualize_waypoints_on_map(map, waypoints, img_map)
 
+
         for frame in range(TOTAL_EPISODE_FRAMES):
             # Gather current data from the CARLA server
             measurement_data, sensor_data = client.read_data()
@@ -869,7 +927,7 @@ def exec_waypoint_nav_demo(args):
 
             # Update pose and timestamp
             prev_timestamp = current_timestamp
-            current_x, current_y, current_yaw = \
+            current_x, current_y, current_z, current_pitch, current_roll, current_yaw = \
                 get_current_pose(measurement_data)
             current_speed = measurement_data.player_measurements.forward_speed
             current_timestamp = float(measurement_data.game_timestamp) / 1000.0
@@ -898,130 +956,6 @@ def exec_waypoint_nav_demo(args):
                                                  prev_collision_other)
             collided_flag_history.append(collided_flag)
 
-            ###
-            # Local Planner Update:
-            #   This will use the behavioural_planner.py and local_planner.py
-            #   implementations that the learner will be tasked with in
-            #   the Course 4 final project
-            ###
-
-            # Obtain Lead Vehicle information.
-            lead_car_pos    = []
-            lead_car_length = []
-            lead_car_speed  = []
-            for agent in measurement_data.non_player_agents:
-                agent_id = agent.id
-                if agent.HasField('vehicle'):
-                    lead_car_pos.append(
-                            [agent.vehicle.transform.location.x,
-                             agent.vehicle.transform.location.y])
-                    lead_car_length.append(agent.vehicle.bounding_box.extent.x)
-                    lead_car_speed.append(agent.vehicle.forward_speed)
-
-            # Visualize Image 
-            segmentation_data = sensor_data.get('Segmentation', None)
-            segmentation_data_r = sensor_data.get('SegmentationRight', None)
-            camera_data = sensor_data.get('CameraRGB', None)
-            depth_data = sensor_data.get('Depth', None)
-            camera_data_r = sensor_data.get('CameraRGBRight', None)
-            depth_data_r = sensor_data.get("DepthRight", None)
-
-            if camera_data_r is not None and depth_data_r is not None and segmentation_data_r is not None:
-                camera_data_r = to_bgra_array(camera_data_r)
-                depth_data_r = depth_to_array(depth_data_r)
-                bgr_img_r = cv2.cvtColor(camera_data_r, cv2.COLOR_BGRA2BGR)
-
-
-                bbox = tl_right_detector.get_enlarged_bbox()
-                image_cityscapes_Segmentationr = labels_to_cityscapes_palette(sensor_data["SegmentationRight"])
-
-                image_cityscapes_Segmentationr = np.array(image_cityscapes_Segmentationr,dtype=np.uint8)
-                if bbox is not None:
-                    cv2.rectangle(image_cityscapes_Segmentationr, (bbox[0], bbox[1]), (bbox[2], bbox[3]), (0,0,0), thickness=5)
-                
-                cv2.imshow("CameraSegmentationRight", image_cityscapes_Segmentationr)
-                cv2.waitKey(10)
-
-                vehicle_bbox_traffic_light_r = tl_right_detector.detect(bgr_img_r, depth_data_r, seg_img=labels_to_array(segmentation_data_r))
-                camera_data_r = tl_right_detector.draw_enlarged_boxes_on_image(camera_data_r)
-                cv2.imshow("CameraRight", camera_data_r)
-                cv2.waitKey(10)
-
-
-
-            if camera_data is not None and depth_data is not None and segmentation_data is not None:
-                image_cityscapes_Segmentation = labels_to_cityscapes_palette(sensor_data["Segmentation"])
-                image_cityscapes_Segmentation = np.array(image_cityscapes_Segmentation,dtype=np.uint8)
-                cv2.imshow("CameraSegmentation", image_cityscapes_Segmentation)
-                cv2.waitKey(10)
-
-                camera_data = to_bgra_array(camera_data)
-                depth_data = depth_to_array(depth_data)  
-                bgr_img = cv2.cvtColor(camera_data, cv2.COLOR_BGRA2BGR)
-
-                vehicle_bbox_traffic_light = tl_detector.detect(bgr_img, depth_data, seg_img=labels_to_array(segmentation_data))
-                camera_data = tl_detector.draw_enlarged_boxes_on_image(camera_data)
-
-                cv2.imshow("CameraRGB", camera_data)
-                cv2.waitKey(10)
-
-            #visualize_waypoints_on_map(map, waypoints, img_map)
-            #img_map_copy = np.copy(img_map)
-            visualize_map(map, img_map, measurements=measurement_data)
-            visualize_goal(map, img_map, waypoints, bp._goal_index)
-
-            #Visualize traffic light point on world
-            if vehicle_bbox_traffic_light is not None:
-                #point_min = vehicle_bbox_traffic_light[0]#Prendiamo il punto in alto a sx
-                #xmin,ymin,v = point_min
-                #point_max = vehicle_bbox_traffic_light[1]#Prendiamo il punto in alto a sx
-                #xmax,ymax,v = point_max
-                x,y,v = vehicle_bbox_traffic_light[0]
-                z=38
-
-                ego_x, ego_y, ego_yaw = get_current_pose(measurement_data)
-                ego_state = [ego_x, ego_y, ego_yaw] #TODO vehicle location
-                
-                #Transformation
-                x_global = ego_state[0] + x*cos(ego_state[2]) - \
-                                                y*sin(ego_state[2])
-                y_global = ego_state[1] + x*sin(ego_state[2]) + \
-                                                y*cos(ego_state[2])
-                
-                #print("Global coordinates: ", (x_global, y_global))
-                
-
-
-                if abs(x) < 40 and abs(y)<40:
-                    visualize_point(map, x_global, y_global, z, img_map, color=(255,225,225))
-
-            print("Local coordinates traffic lights: ", vehicle_bbox_traffic_light)
-            #Visualize traffic light point on world
-            if vehicle_bbox_traffic_light_r is not None:
-                #point_min = vehicle_bbox_traffic_light[0]#Prendiamo il punto in alto a sx
-                #xmin,ymin,v = point_min
-                #point_max = vehicle_bbox_traffic_light[1]#Prendiamo il punto in alto a sx
-                #xmax,ymax,v = point_max
-                xr,yr,vr = vehicle_bbox_traffic_light_r[0]
-                zr=38
-
-                ego_x, ego_y, ego_yaw = get_current_pose(measurement_data)
-                ego_state = [ego_x, ego_y, ego_yaw] #TODO vehicle location
-                
-                #Transformation
-                x_globalr = ego_state[0] + xr*cos(ego_state[2]) - \
-                                                yr*sin(ego_state[2])
-                y_globalr = ego_state[1] + xr*sin(ego_state[2]) + \
-                                                yr*cos(ego_state[2])
-                
-                #print("Global coordinates: ", (x_global, y_global))
-                
-
-
-                if abs(xr) < 60 and abs(yr)<60:
-                    visualize_point(map, x_globalr, y_globalr, zr, img_map, color=(225,225,0))
-            print("Local coordinates traffic lights right: ", vehicle_bbox_traffic_light_r)
-
             # Execute the behaviour and local planning in the current instance
             # Note that updating the local path during every controller update
             # produces issues with the tracking performance (imagine everytime
@@ -1031,6 +965,133 @@ def exec_waypoint_nav_demo(args):
             # to be operating at a frequency that is a division to the 
             # simulation frequency.
             if frame % LP_FREQUENCY_DIVISOR == 0:
+                # Visualize Image
+                # ############################################################## 
+                segmentation_data = sensor_data.get('Segmentation', None)
+                segmentation_data_r = sensor_data.get('SegmentationRight', None)
+                camera_data = sensor_data.get('CameraRGB', None)
+                depth_data = sensor_data.get('Depth', None)
+                camera_data_r = sensor_data.get('CameraRGBRight', None)
+                depth_data_r = sensor_data.get("DepthRight", None)
+
+                if camera_data_r is not None and depth_data_r is not None and segmentation_data_r is not None:
+                    camera_data_r = to_bgra_array(camera_data_r)
+                    depth_data_r = depth_to_array(depth_data_r)
+                    bgr_img_r = cv2.cvtColor(camera_data_r, cv2.COLOR_BGRA2BGR)
+
+
+                    bbox = tl_right_detector.get_enlarged_bbox()
+                    image_cityscapes_Segmentationr = labels_to_cityscapes_palette(sensor_data["SegmentationRight"])
+
+                    image_cityscapes_Segmentationr = np.array(image_cityscapes_Segmentationr,dtype=np.uint8)
+                    if bbox is not None:
+                        cv2.rectangle(image_cityscapes_Segmentationr, (bbox[0], bbox[1]), (bbox[2], bbox[3]), (0,0,0), thickness=5)
+                    
+                    cv2.imshow("CameraSegmentationRight", image_cityscapes_Segmentationr)
+                    cv2.waitKey(10)
+
+                    vehicle_bbox_traffic_light_r = tl_right_detector.detect(bgr_img_r, depth_data_r, seg_img=labels_to_array(segmentation_data_r))
+                    camera_data_r = tl_right_detector.draw_enlarged_boxes_on_image(camera_data_r)
+                    cv2.imshow("CameraRight", camera_data_r)
+                    cv2.waitKey(10)
+
+
+
+                if camera_data is not None and depth_data is not None and segmentation_data is not None:
+                    image_cityscapes_Segmentation = labels_to_cityscapes_palette(sensor_data["Segmentation"])
+                    image_cityscapes_Segmentation = np.array(image_cityscapes_Segmentation,dtype=np.uint8)
+                    cv2.imshow("CameraSegmentation", image_cityscapes_Segmentation)
+                    cv2.waitKey(10)
+
+                    camera_data = to_bgra_array(camera_data)
+                    depth_data = depth_to_array(depth_data)  
+                    bgr_img = cv2.cvtColor(camera_data, cv2.COLOR_BGRA2BGR)
+
+                    vehicle_bbox_traffic_light = tl_detector.detect(bgr_img, depth_data, seg_img=labels_to_array(segmentation_data))
+                    camera_data = tl_detector.draw_enlarged_boxes_on_image(camera_data)
+
+                    cv2.imshow("CameraRGB", camera_data)
+                    cv2.waitKey(10)
+
+                #visualize_waypoints_on_map(map, waypoints, img_map)
+                #img_map_copy = np.copy(img_map)
+                visualize_map(map, img_map, measurements=measurement_data)
+                visualize_goal(map, img_map, waypoints, bp._goal_index)
+
+                #Visualize traffic light point on world
+                if vehicle_bbox_traffic_light is not None:
+                    #point_min = vehicle_bbox_traffic_light[0]#Prendiamo il punto in alto a sx
+                    #xmin,ymin,v = point_min
+                    #point_max = vehicle_bbox_traffic_light[1]#Prendiamo il punto in alto a sx
+                    #xmax,ymax,v = point_max
+                    x,y,v = vehicle_bbox_traffic_light[0]
+                    z=38
+
+                    ego_x, ego_y, _, _, _, ego_yaw = get_current_pose(measurement_data)
+                    ego_state = [ego_x, ego_y, ego_yaw] #TODO vehicle location
+                    
+                    #Transformation
+                    x_global = ego_state[0] + x*cos(ego_state[2]) - \
+                                                    y*sin(ego_state[2])
+                    y_global = ego_state[1] + x*sin(ego_state[2]) + \
+                                                    y*cos(ego_state[2])
+                    
+                    #print("Global coordinates: ", (x_global, y_global))
+                    
+
+
+                    if abs(x) < 40 and abs(y)<40:
+                        visualize_point(map, x_global, y_global, z, img_map, color=(0,225,225))
+
+                #print("Local coordinates traffic lights: ", vehicle_bbox_traffic_light)
+                #Visualize traffic light point on world
+                if vehicle_bbox_traffic_light_r is not None:
+                    #point_min = vehicle_bbox_traffic_light[0]#Prendiamo il punto in alto a sx
+                    #xmin,ymin,v = point_min
+                    #point_max = vehicle_bbox_traffic_light[1]#Prendiamo il punto in alto a sx
+                    #xmax,ymax,v = point_max
+                    xr,yr,vr = vehicle_bbox_traffic_light_r[0]
+                    zr=38
+
+                    ego_x, ego_y, _, _, _, ego_yaw = get_current_pose(measurement_data)
+                    ego_state = [ego_x, ego_y, ego_yaw] #TODO vehicle location
+                    
+                    #Transformation
+                    x_globalr = ego_state[0] + xr*cos(ego_state[2]) - \
+                                                    yr*sin(ego_state[2])
+                    y_globalr = ego_state[1] + xr*sin(ego_state[2]) + \
+                                                    yr*cos(ego_state[2])
+                    
+                    #print("Global coordinates: ", (x_global, y_global))
+                    """
+                    res = None
+                    if xr>0: #sta a dx
+                        tl_tracking.track(ego_state[:2], (x_globalr, y_globalr), tl_right_detector.is_red())
+                        res = tl_tracking.get_next_traffic_light()
+                        if res is not None and res[0] is not None:
+                            visualize_point(map, int(res[0][0]), int(res[0][1]), zr, img_map, color=(238,130,238), r=20)
+                    """
+                    tl_tracking.track(ego_state, (xr,yr), tl_right_detector.is_red())
+                    res = tl_tracking.get_nearest_tl(ego_state)
+                    print("Clusters: ", tl_tracking.get_clusters())
+                    if res is not None:
+                        print("RESULT: ", res)
+                        
+                        visualize_point(map, int(res[0][0]), int(res[0][1]), zr, img_map, color=(238,130,238), r=20)
+                    else:
+                        print("NO RES")
+
+
+                    if abs(xr) < 60 and abs(yr)<60:
+                        visualize_point(map, x_globalr, y_globalr, zr, img_map, color=(225,225,0), text=True)
+                    
+                        print("Global coordinates traffic light right: ", (x_globalr, y_globalr))
+                        print("Global pose: ", (ego_x, ego_y))
+                #print("Local coordinates traffic lights right: ", vehicle_bbox_traffic_light_r)
+                
+                
+                ###################################################################################
+
                 # Compute open loop speed estimate.
                 open_loop_speed = lp._velocity_planner.get_open_loop_speed(current_timestamp - prev_timestamp)
 

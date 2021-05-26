@@ -19,7 +19,7 @@ class TrafficLightDetector:
         self.__img = None
         self.box = None
         #self._min_frames_ok = 3 #minimum number of frames 
-        self._max_frame_ok = 2 #number of consecutive frames to detect traffic light 
+        self._max_frame_ok = 3 #number of consecutive frames to detect traffic light 
         self._counter_consecutive_detection = 0
         #self.centerPoint=0
     
@@ -36,7 +36,9 @@ class TrafficLightDetector:
         box=boxes[0] #the most important
         self.box = box
         score = box.get_score()
-        if score<0.2:
+        print("SCORE: ", score)
+        
+        if score<0.25:
             self.__bbox=None
             return None
         #print("Score: ", score)
@@ -83,6 +85,8 @@ class TrafficLightDetector:
 
         if tl_mask.sum()==0:
             return None
+
+        print("TLMask sum: ", tl_mask.sum())
 
         #Use moment to find the center of a mass
         M=cv2.moments(tl_mask)
