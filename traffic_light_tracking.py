@@ -4,6 +4,7 @@ from math import cos, sin, pi,tan
 from scipy.spatial import distance
 from utils import from_global_to_local_frame, from_local_to_global_frame, centeroidnp
 
+MAX_DIM_COLORS = 7
 class TrafficLightTracking:
 
     def __init__(self):
@@ -27,23 +28,23 @@ class TrafficLightTracking:
         clusters_to_delete = []
         for k in self.groups.keys():
             #Compute the location of cluster respect to vehicle frame
-            print("Group meas: ", k)
+            #print("Group meas: ", k)
             #print("TL meas: ", (x_global, y_global))
             x_l, y_l = from_global_to_local_frame(ego_state, k)
 
-            print("Local coords: ", x_l, y_l)
+            #print("Local coords: ", x_l, y_l)
 
-            if x_l > 0 and y_l > 0:
-                print("Is at Right")
+            #if x_l > 0 and y_l > 0:
+            #    print("Is at Right")
 
             if x_l < 0:
-                print("REMOVE K: ", k)
+                #print("REMOVE K: ", k)
                 clusters_to_delete.append(k)
                 continue
 
 
             dist = distance.euclidean(np.array(k), np.array((x_global, y_global))) #calcolo la distanza tra un cluster e una misura
-            print("Meas {} cluster {} dist: {}".format(pos_global, k, dist))
+            #print("Meas {} cluster {} dist: {}".format(pos_global, k, dist))
             if dist<d and dist<self.max_meters:
                 #print("Dist: ", np.sqrt((k[0]-x_global)**2 + (k[1]-y_global)**2) )
                 d = dist
@@ -55,6 +56,8 @@ class TrafficLightTracking:
         if min_dist_elem is not None:
             self.groups[min_dist_elem].append([x_global, y_global])
             self.color_groups[min_dist_elem].append(color)
+            if len(self.color_groups[min_dist_elem])>MAX_DIM_COLORS:
+                self.color_groups[min_dist_elem] = self.color_groups[min_dist_elem][-MAX_DIM_COLORS:]
         
         else: #create another group
             x_c, y_c = int(x_global), int(y_global)
@@ -71,7 +74,7 @@ class TrafficLightTracking:
             x_l, y_l = from_global_to_local_frame(ego_state, k)
             #add condition that it has to be forward
             
-            print("my_distance: ", dist)
+            #print("my_distance: ", dist)
             if dist<d and len(self.groups[k])>self.min_measurements and x_l > 0 and y_l>0:
                 d = dist
                 min_dist_elem = k
@@ -90,6 +93,7 @@ class TrafficLightTracking:
         centroid = centeroidnp(np.array(points))
         sum_colors = np.sum(colors)
         color = 1 if  sum_colors > len(colors)//2  else 0 #Majority vote
+        #color = colors[-1]
         return (centroid, color)
 
 

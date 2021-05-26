@@ -41,10 +41,10 @@ from traffic_light_tracking import TrafficLightTracking
 ###############################################################################
 # CONFIGURABLE PARAMENTERS DURING EXAM
 ###############################################################################
-PLAYER_START_INDEX = 20          #  spawn index for player
+PLAYER_START_INDEX = 66 #150         #  spawn index for player
 DESTINATION_INDEX = 18        # Setting a Destination HERE
-NUM_PEDESTRIANS        = 10#30      # total number of pedestrians to spawn
-NUM_VEHICLES           = 10#30      # total number of vehicles to spawn
+NUM_PEDESTRIANS        = 1#30      # total number of pedestrians to spawn
+NUM_VEHICLES           = 1#30      # total number of vehicles to spawn
 SEED_PEDESTRIANS       = 0      # seed for pedestrian spawn randomizer
 SEED_VEHICLES          = 0     # seed for vehicle spawn randomizer
 ###############################################################################àà
@@ -659,7 +659,7 @@ def exec_waypoint_nav_demo(args):
 
         waypoints = []
         waypoints_route = mission_planner.compute_route(source, source_ori, destination, destination_ori)
-        desired_speed = 10.0
+        desired_speed = 3.0
         turn_speed    = 2.5
 
         intersection_nodes = mission_planner.get_intersection_nodes()
@@ -896,6 +896,7 @@ def exec_waypoint_nav_demo(args):
         tl_detector = TrafficLightDetectorWorld(camera_parameters, model)
         tl_right_detector = TrafficLightDetectorWorld(camera_parameters_right, model)
         tl_tracking = TrafficLightTracking()
+        traffic_light_fences = []
         #############################################
         # Scenario Execution Loop
         #############################################
@@ -1038,7 +1039,13 @@ def exec_waypoint_nav_demo(args):
                     
                     #print("Global coordinates: ", (x_global, y_global))
                     
-
+                    tl_tracking.track(ego_state, (x,y), tl_detector.is_red())
+                    res = tl_tracking.get_nearest_tl(ego_state)
+                    #print("Clusters: ", tl_tracking.get_clusters())
+                    if res is not None:
+                        print("RESULT: ", res)
+                        traffic_light_fences = [res]
+                        bp._traffic_light_fences = traffic_light_fences
 
                     if abs(x) < 40 and abs(y)<40:
                         visualize_point(map, x_global, y_global, z, img_map, color=(0,225,225))
@@ -1073,9 +1080,12 @@ def exec_waypoint_nav_demo(args):
                     """
                     tl_tracking.track(ego_state, (xr,yr), tl_right_detector.is_red())
                     res = tl_tracking.get_nearest_tl(ego_state)
-                    print("Clusters: ", tl_tracking.get_clusters())
+                    #print("Clusters: ", tl_tracking.get_clusters())
                     if res is not None:
                         print("RESULT: ", res)
+                        traffic_light_fences = [res]
+                        bp._traffic_light_fences = traffic_light_fences
+                        print("ADDED {} to BP".format(res))
                         
                         visualize_point(map, int(res[0][0]), int(res[0][1]), zr, img_map, color=(238,130,238), r=20)
                     else:
@@ -1085,8 +1095,8 @@ def exec_waypoint_nav_demo(args):
                     if abs(xr) < 60 and abs(yr)<60:
                         visualize_point(map, x_globalr, y_globalr, zr, img_map, color=(225,225,0), text=True)
                     
-                        print("Global coordinates traffic light right: ", (x_globalr, y_globalr))
-                        print("Global pose: ", (ego_x, ego_y))
+                        #print("Global coordinates traffic light right: ", (x_globalr, y_globalr))
+                        #print("Global pose: ", (ego_x, ego_y))
                 #print("Local coordinates traffic lights right: ", vehicle_bbox_traffic_light_r)
                 
                 

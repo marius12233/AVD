@@ -38,7 +38,7 @@ class TrafficLightDetector:
         score = box.get_score()
         print("SCORE: ", score)
         
-        if score<0.25:
+        if score<0.24:
             self.__bbox=None
             return None
         #print("Score: ", score)
@@ -86,7 +86,7 @@ class TrafficLightDetector:
         if tl_mask.sum()==0:
             return None
 
-        print("TLMask sum: ", tl_mask.sum())
+        #print("TLMask sum: ", tl_mask.sum())
 
         #Use moment to find the center of a mass
         M=cv2.moments(tl_mask)
