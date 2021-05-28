@@ -9,7 +9,6 @@ import argparse
 import logging
 import time
 import math
-from utils import from_global_to_local_frame
 import numpy as np
 import csv
 import matplotlib.pyplot as plt
@@ -21,6 +20,7 @@ import behavioural_planner
 import cv2
 import json 
 from math import sin, cos, pi, tan, sqrt
+from utils import from_global_to_local_frame
 
 # Script level imports
 sys.path.append(os.path.abspath(sys.path[0] + '/..'))
@@ -51,7 +51,7 @@ SEED_PEDESTRIANS       = 0      # seed for pedestrian spawn randomizer
 SEED_VEHICLES          = 0     # seed for vehicle spawn randomizer
 ###############################################################################àà
 
-ITER_FOR_SIM_TIMESTEP  = 5     # no. iterations to compute approx sim timestep
+ITER_FOR_SIM_TIMESTEP  = 10     # no. iterations to compute approx sim timestep
 WAIT_TIME_BEFORE_START = 1.00   # game seconds (time before controller start)
 TOTAL_RUN_TIME         = 5000.00 # game seconds (total runtime before sim end)
 TOTAL_FRAME_BUFFER     = 300    # number of frames to buffer after total runtime
@@ -240,7 +240,7 @@ def make_carla_settings(args):
     camera_fov_right = camera_parameters_right['fov']
     cam_yaw_right = camera_parameters_right['yaw']
     cam_pitch_right = camera_parameters_right['pitch']
-    cam_roll_right = camera_parameters_right['roll']    
+    cam_roll_right = camera_parameters_right['roll']
 
     # Declare here your sensors
     camera0 = Camera("CameraRGB")
@@ -354,6 +354,28 @@ def get_current_pose(measurement):
     yaw = math.radians(measurement.player_measurements.transform.rotation.yaw)
 
     return (x, y, z, pitch, roll, yaw)
+def get_current_pose_ori(measurement):
+    """Obtains current x,y,yaw pose from the client measurements
+    
+    Obtains the current x,y, and yaw pose from the client measurements.
+
+    Args:
+        measurement: The CARLA client measurements (from read_data())
+
+    Returns: (x, y, yaw)
+        x: X position in meters
+        y: Y position in meters
+        yaw: Yaw position in radians
+    """
+    x   = measurement.player_measurements.transform.location.x
+    y   = measurement.player_measurements.transform.location.y
+    z   =  measurement.player_measurements.transform.location.z
+
+    ori_x = math.radians(measurement.player_measurements.transform.orientation.x)
+    ori_y = math.radians(measurement.player_measurements.transform.orientation.y)
+    ori_z = math.radians(measurement.player_measurements.transform.orientation.z)
+
+    return (x, y, z, ori_x, ori_y, ori_z)
 
 def get_start_pos(scene):
     """Obtains player start x,y, yaw pose from the scene
@@ -595,7 +617,7 @@ def exec_waypoint_nav_demo(args):
         
         # Settings Mission Planner
         mission_planner = CityTrack("Town01")
-        
+
         #############################################
         # Determine simulation average timestep (and total frames)
         #############################################
@@ -672,7 +694,7 @@ def exec_waypoint_nav_demo(args):
         turn_speed    = 1.5
 
         intersection_nodes = mission_planner.get_intersection_nodes()
-
+        
         #Save int. worls
         intersection_nodes_world = []
         for point in intersection_nodes:
@@ -978,6 +1000,37 @@ def exec_waypoint_nav_demo(args):
                                                  prev_collision_other)
             collided_flag_history.append(collided_flag)
 
+
+            ###
+            # Local Planner Update:
+            #   This will use the behavioural_planner.py and local_planner.py
+            #   implementations that the learner will be tasked with in
+            #   the Course 4 final project
+            ###
+
+            # Obtain Lead Vehicle information.
+            prob_obs ={}
+            prob_obs["vehicle"]={"pos":[],"speed":[],"bounding_box":[]}
+            prob_obs["pedestrian"]={"pos":[],"bounding_box":[]}
+            
+            for agent in measurement_data.non_player_agents:
+                agent_id = agent.id
+                if agent.HasField('vehicle'):
+                    prob_obs["vehicle"]["pos"].append([agent.vehicle.transform.location.x,
+                             agent.vehicle.transform.location.y])
+                    prob_obs["vehicle"]["speed"].append(agent.vehicle.forward_speed)
+                    prob_obs["vehicle"]["bounding_box"].append(obstacle_to_world(agent.vehicle.transform.location,agent.vehicle.bounding_box.extent,agent.vehicle.transform.rotation))
+                    
+                    
+            
+                
+                if agent.HasField('pedestrian'):
+                    prob_obs["pedestrian"]["pos"].append([agent.pedestrian.transform.location.x,
+                                           agent.pedestrian.transform.location.y])
+                    prob_obs["pedestrian"]["bounding_box"].append(obstacle_to_world(agent.pedestrian.transform.location,agent.pedestrian.bounding_box.extent,agent.pedestrian.transform.rotation))
+            
+            
+
             # Execute the behaviour and local planning in the current instance
             # Note that updating the local path during every controller update
             # produces issues with the tracking performance (imagine everytime
@@ -987,7 +1040,7 @@ def exec_waypoint_nav_demo(args):
             # to be operating at a frequency that is a division to the 
             # simulation frequency.
             if frame % LP_FREQUENCY_DIVISOR == 0:
-                # Visualize Image
+                                # Visualize Image
                 # ############################################################## 
                 segmentation_data = sensor_data.get('Segmentation', None)
                 segmentation_data_r = sensor_data.get('SegmentationRight', None)
@@ -1074,7 +1127,7 @@ def exec_waypoint_nav_demo(args):
                     int_point = tl_tracking.find_next_intersection(ego_state)
                     if int_point is not None:
                         visualize_point(map, int_point[0], int_point[1], 10, img_map, color=(0,0,225))
-                        visualize_rect(map, (int_point[0]-20, int_point[1]-20, int_point[0]+20, int_point[1]+20), 3, img_map, color=(0,0,225))
+                        #visualize_rect(map, (int_point[0]-20, int_point[1]-20, int_point[0]+20, int_point[1]+20), 3, img_map, color=(0,0,225))
 
 
 
@@ -1168,19 +1221,36 @@ def exec_waypoint_nav_demo(args):
                 
                 ###################################################################################
 
+                
                 # Compute open loop speed estimate.
                 open_loop_speed = lp._velocity_planner.get_open_loop_speed(current_timestamp - prev_timestamp)
 
                 # Calculate the goal state set in the local frame for the local planner.
                 # Current speed should be open loop for the velocity profile generation.
                 ego_state = [current_x, current_y, current_yaw, open_loop_speed]
+                
+                closest_vehicle_index=bp.check_for_closest_vehicle(ego_state,prob_obs["vehicle"]["pos"])
+                
 
+                
                 # Set lookahead based on current speed.
+                print(BP_LOOKAHEAD_BASE + BP_LOOKAHEAD_TIME * open_loop_speed)
                 bp.set_lookahead(BP_LOOKAHEAD_BASE + BP_LOOKAHEAD_TIME * open_loop_speed)
-
+                bp.set_follow_lead_vehicle_lookahead(BP_LOOKAHEAD_BASE + BP_LOOKAHEAD_TIME * open_loop_speed)
                 # Perform a state transition in the behavioural planner.
                 bp.transition_state(waypoints, ego_state, current_speed)
 
+                # Check to see if we need to follow the lead vehicle.
+                #lead_car_idx=None
+                if closest_vehicle_index is not None:
+                    bp.check_for_lead_vehicle(ego_state, prob_obs["vehicle"]["pos"][closest_vehicle_index])
+                else:
+                    bp.check_for_lead_vehicle(ego_state, None)
+
+                    
+                if  bp.get_follow_lead_vehicle():
+                    prob_obs["vehicle"]["bounding_box"].pop(closest_vehicle_index)        
+                    prob_obs["vehicle"]["pos"].pop(closest_vehicle_index)
                 # Compute the goal state set from the behavioural planner's computed goal state.
                 goal_state_set = lp.get_goal_state_set(bp._goal_index, bp._goal_state, waypoints, ego_state)
 
@@ -1189,10 +1259,16 @@ def exec_waypoint_nav_demo(args):
 
                 # Transform those paths back to the global frame.
                 paths = local_planner.transform_paths(paths, ego_state)
-
+                collision_check_array=[]
                 # Perform collision checking.
-                collision_check_array = lp._collision_checker.collision_check(paths, [])
-
+                if(len(paths)>0):
+                    collision_check_array=[ True ]*len(paths)
+                    prob_coll_pedestrian=bp.check_for_pedestrian(ego_state,prob_obs["pedestrian"]["pos"],prob_obs["pedestrian"]["bounding_box"])
+                    prob_coll_vehicle=bp.check_for_vehicle(ego_state,prob_obs["vehicle"]["pos"],prob_obs["vehicle"]["bounding_box"])
+                    for bb in prob_coll_pedestrian + prob_coll_vehicle:
+                        cc = lp._collision_checker.collision_check(paths, [bb])
+                        collision_check_array=list(np.array(cc) & np.array(collision_check_array))
+                
                 # Compute the best local path.
                 best_index = lp._collision_checker.select_best_path_index(paths, collision_check_array, bp._goal_state)
                 # If no path was feasible, continue to follow the previous best path.
@@ -1205,8 +1281,12 @@ def exec_waypoint_nav_demo(args):
                 if best_path is not None:
                     # Compute the velocity profile for the path, and compute the waypoints.
                     desired_speed = bp._goal_state[2]
+                    if bp.get_follow_lead_vehicle() :
+                        lead_car_state = [prob_obs["vehicle"]["pos"][closest_vehicle_index][0], prob_obs["vehicle"]["pos"][closest_vehicle_index][1], prob_obs["vehicle"]["speed"][closest_vehicle_index]]
+                    else :
+                        lead_car_state=None
                     decelerate_to_stop = bp._state == behavioural_planner.DECELERATE_TO_STOP
-                    local_waypoints = lp._velocity_planner.compute_velocity_profile(best_path, desired_speed, ego_state, current_speed, decelerate_to_stop, None, bp._follow_lead_vehicle)
+                    local_waypoints = lp._velocity_planner.compute_velocity_profile(best_path, desired_speed, ego_state, current_speed, decelerate_to_stop, lead_car_state, bp.get_follow_lead_vehicle())
 
                     if local_waypoints != None:
                         # Update the controller waypoint path with the best local path.
