@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from traffic_light import TrafficLight
 import numpy as np
 import math
 from utils import from_global_to_local_frame
@@ -18,8 +19,6 @@ MIN_DIST_TO_STOP = 3
 class BehaviouralPlanner:
     def __init__(self, lookahead, lead_vehicle_lookahead):
         self._lookahead                     = lookahead
-        self._traffic_light_fences               = []
-        self._traffic_light_visited              = [False]#*len(self._traffic_light_fences)
         self._follow_lead_vehicle_lookahead = lead_vehicle_lookahead
         self._state                         = FOLLOW_LANE
         self._follow_lead_vehicle           = False
@@ -29,7 +28,8 @@ class BehaviouralPlanner:
         self._stop_count                    = 0
         self._lookahead_collision_index     = 0
         self._no_tl_found_counter = 0
-        self._traffic_light = None
+        self._traffic_light:TrafficLight = None
+        self._has_tl_changed_pos = False #Ci serve per dire che se il semaforo è quello di sempre mi risparmio di fare le operazioni
     
     def set_lookahead(self, lookahead):
         self._lookahead = lookahead
@@ -102,6 +102,8 @@ class BehaviouralPlanner:
             # Check stop signs
             goal_index, traffic_light_found = self.check_for_traffic_light(waypoints, closest_index, goal_index, ego_state)
             
+            if self._traffic_light is not None:
+                print("In Follow Lane: tl, tl_found", self._traffic_light.get_pos(), self._traffic_light.get_color(), self._traffic_light.is_next(), self._traffic_light.has_changed,traffic_light_found)
             if traffic_light_found: 
                 self._goal_index = goal_index
                 self._goal_state = waypoints[goal_index]
@@ -132,21 +134,31 @@ class BehaviouralPlanner:
             
             #Prima testare se si ferma sotto sotto i waypoints
 
+            #Decellero per entrare nello stato dis top, tuttavia se il semaforo diventa verde riparto
+            #Riparto anche se il semaforo è next
+            if self._traffic_light is not None:
+                if self._traffic_light.get_color() == 0 or not self._traffic_light.is_next():
+                    self._state = FOLLOW_LANE
+
+
             #print("DECELERATE_TO_STOP")
-            print("Speed: ", abs(closed_loop_speed))
-            if abs(closed_loop_speed) <= STOP_THRESHOLD:
-                self._state = STAY_STOPPED
-                self._stop_count = 0
+            else:
+                print("Speed: ", abs(closed_loop_speed))
+                if abs(closed_loop_speed) <= STOP_THRESHOLD:
+                    self._state = STAY_STOPPED
+                    self._stop_count = 0
 
         # In this state, check to see if we have stayed stopped for at
         # least STOP_COUNTS number of cycles. If so, we can now leave
         # the stop sign and transition to the next state.
         elif self._state == STAY_STOPPED:
             color=0
-            if len(self._traffic_light_fences)>0:
-                color = self._traffic_light_fences[0][1]
+            if self._traffic_light is not None:
+                color = self._traffic_light.get_color()
                 
-            if  color==0:
+            if  color==0 and self._traffic_light.is_next():
+                self._state = FOLLOW_LANE
+                """
                 #print("STAY_STOPPED")
                 # We have stayed stopped for the required number of cycles.
                 # Allow the ego vehicle to leave the stop sign. Once it has
@@ -172,17 +184,16 @@ class BehaviouralPlanner:
                 self._state = FOLLOW_LANE
                 #if len(self._traffic_light_visited)>0:
                 self._traffic_light_visited[0]=False
+                """
                 
         else:
             raise ValueError('Invalid state value.')
 
-    def no_traffic_light_found(self):
-        self._no_tl_found_counter+=1
-        if (self._state==DECELERATE_TO_STOP or self._state==STAY_STOPPED) and self._no_tl_found_counter>=5: #Se non è stato trovato alcun semaforo per più di 5 volte mentre stai decellerando o sei fermo allora vai
-            self._traffic_light_fences = []
-            self._traffic_light_visited = []
-            self._no_tl_found_counter=0
-            self._state = FOLLOW_LANE #TODO: capire se è giusto impostare lo stato in questa funzione
+
+
+    def set_traffic_light(self, traffic_light:TrafficLight):
+        if self._traffic_light is None:
+            self._traffic_light = traffic_light
 
 
     
@@ -218,67 +229,65 @@ class BehaviouralPlanner:
                 stop_sign_found: Boolean flag for whether a stop sign was found or not
         """
 
-        if len(self._traffic_light_fences)==0:
+        
+        if self._traffic_light is None:
+            return goal_index, False
+        
+        #Se il semaforo corrente non è più il prossimo dici che non c'è
+        if not self._traffic_light.is_next():
             return goal_index, False
 
-
-
         #Col verde non facciamo niente
-        if len(self._traffic_light_fences)>0:
-
-            color = self._traffic_light_fences[0][1]
-            if color == 0:
-                return goal_index, False
+        color = self._traffic_light.get_color()
+        if color == 0:
+            return goal_index, False
 
         min_idx = None
         min_dist = np.Inf
         min_key = None
         print("DISTANCES")
         print("======================")
-        for i in range(closest_index, goal_index):
-            # Check to see if path segment crosses any of the stop lines.
-            
-            if self._traffic_light_visited[0]: continue
-
-            traffic_light_fence = self._traffic_light_fences[0]
-
-            wp  = np.array(waypoints[i][0:2])
-            s   = np.array(traffic_light_fence[0][0:2])
-
-            wp_local = from_global_to_local_frame(ego_state, wp)
-            s_local = from_global_to_local_frame(ego_state, s)
-
-            dist_wp_s = np.linalg.norm(wp-s)
-            print("d[{}]: {}".format(i, dist_wp_s))
-
-            if wp_local[0] > s_local[0]: #skip waypoints further than traffic light respect to vehicle
-                continue
-
-            if dist_wp_s < MIN_DIST_TO_STOP:
-                continue
-            
-            if dist_wp_s < min_dist:
-                min_dist = dist_wp_s
-                min_idx = i
-
-                
-        
-        print("MIN DIST: ", min_dist)
-        if min_idx is not None:
-            print("WP: ", min_idx)
+        if not self._traffic_light.has_changed: #Se è cambiata la posizione del semaforo calcola di nuovo il goal index
+            self._traffic_light.has_changed = False
         else:
-            print("WP LOCAL NOT FOUND!!")
-                
-        if min_dist > MAX_DIST_TO_STOP:
-            return goal_index, False
+            for i in range(closest_index, goal_index):
+                # Check to see if path segment crosses any of the stop lines.
 
-        # If there is an intersection with a stop line, update
-        # the goal state to stop before the goal line.
-        if min_idx is not None:
-            goal_index = min_idx
-            self._traffic_light_visited[0] = True
-            self._no_tl_found_counter=0
-            return goal_index, True
+                wp  = np.array(waypoints[i][0:2])
+                s   = np.array(self._traffic_light.get_pos()[0:2])
+
+                wp_local = from_global_to_local_frame(ego_state, wp)
+                s_local = from_global_to_local_frame(ego_state, s)
+
+                dist_wp_s = np.linalg.norm(wp-s)
+                print("d[{}]: {}".format(i, dist_wp_s))
+
+                if wp_local[0] > s_local[0]: #skip waypoints further than traffic light respect to vehicle
+                    continue
+
+                if dist_wp_s < MIN_DIST_TO_STOP:
+                    continue
+                
+                if dist_wp_s < min_dist:
+                    min_dist = dist_wp_s
+                    min_idx = i
+
+                
+                print("MIN DIST: ", min_dist)
+                if min_idx is not None:
+                    print("WP: ", min_idx)
+                else:
+                    print("WP LOCAL NOT FOUND!!")
+                        
+                if min_dist > MAX_DIST_TO_STOP:
+                    print("min dist > max dist to stop")
+                    return goal_index, False
+
+                # If there is an intersection with a stop line, update
+                # the goal state to stop before the goal line.
+                if min_idx is not None:
+                    goal_index = min_idx
+                    return goal_index, True
 
         return goal_index, False
 

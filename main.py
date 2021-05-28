@@ -43,8 +43,8 @@ from traffic_light import TrafficLight
 ###############################################################################
 # CONFIGURABLE PARAMENTERS DURING EXAM
 ###############################################################################
-PLAYER_START_INDEX =  66#135#141#66 150         #  spawn index for player
-DESTINATION_INDEX = 18#53#90#18        # Setting a Destination HERE
+PLAYER_START_INDEX =  135#135#141#66 150         #  spawn index for player
+DESTINATION_INDEX = 53#53#90#18        # Setting a Destination HERE
 NUM_PEDESTRIANS        = 1#30      # total number of pedestrians to spawn
 NUM_VEHICLES           = 1#30      # total number of vehicles to spawn
 SEED_PEDESTRIANS       = 0      # seed for pedestrian spawn randomizer
@@ -1133,9 +1133,8 @@ def exec_waypoint_nav_demo(args):
                     if res_r is not None:
                         visualize_point(map, int(res_r[0][0]), int(res_r[0][1]), zr, img_map, color=(238,130,238), r=20)
                         print("RESULT R: ", res_r)
-                        traffic_light_fences = [res_r]
-                        bp._traffic_light_fences = traffic_light_fences
-                        bp._traffic_light = traffic_light
+                        traffic_light._last_img_cropped = tl_right_detector.get_img_cropped()
+                        bp.set_traffic_light(traffic_light)
                         print("ADDED {} to BP".format(res_r))
                         print("Clusters: ", tl_tracking.get_clusters())
                     else: #Se non c'è la detection della camera destra vado con la centrale
@@ -1143,18 +1142,16 @@ def exec_waypoint_nav_demo(args):
                             print("Clusters: ", tl_tracking.get_clusters())
                             if res is not None:
                                 print("RESULT: ", res)
-                                traffic_light_fences = [res]
-                                bp._traffic_light_fences = traffic_light_fences
-                                bp._traffic_light = traffic_light
+                                traffic_light._last_img_cropped = tl_detector.get_img_cropped()
+                                bp.set_traffic_light(traffic_light)
                 
                 elif vehicle_bbox_traffic_light is not None:
                     
                     print("Clusters: ", tl_tracking.get_clusters())
                     if res is not None:
                         print("RESULT: ", res)
-                        traffic_light_fences = [res]
-                        bp._traffic_light_fences = traffic_light_fences
-                        bp._traffic_light = traffic_light
+                        traffic_light._last_img_cropped = tl_detector.get_img_cropped()
+                        bp.set_traffic_light(traffic_light)
                 
                 else:
                     print("No traffic Light")
