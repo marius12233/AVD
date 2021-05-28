@@ -76,10 +76,12 @@ class TrafficLight:
         #Converto i colori in hsv per classificare meglio
         #FARLO SOLO SE SEI IL NEXT 
         #TODO: if self._is_next:
+        """
         if self._last_img_cropped is not None:
             cv2.imwrite("tl_"+str(np.random.randint(1000))+".jpg", self._last_img_cropped)
             cv2.imshow("TL: ", self._last_img_cropped)
             cv2.waitKey(10)
+        """
 
 
         
