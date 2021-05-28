@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 from traffic_light import TrafficLight
+from utils import from_global_to_local_frame
 import numpy as np
 import math
-from utils import from_global_to_local_frame
 
 # State machine states
 FOLLOW_LANE = 0
@@ -12,10 +12,8 @@ STAY_STOPPED = 2
 STOP_THRESHOLD = 0.03
 # Number of cycles before moving from stop sign.
 STOP_COUNTS = 10
-
 MAX_DIST_TO_STOP = 12
-MIN_DIST_TO_STOP = 3 
-
+MIN_DIST_TO_STOP = 3
 class BehaviouralPlanner:
     def __init__(self, lookahead, lead_vehicle_lookahead):
         self._lookahead                     = lookahead
@@ -26,14 +24,18 @@ class BehaviouralPlanner:
         self._goal_state                    = [0.0, 0.0, 0.0]
         self._goal_index                    = 0
         self._stop_count                    = 0
-        self._lookahead_collision_index     = 0
         self._no_tl_found_counter = 0
         self._traffic_light:TrafficLight = None
         self._has_tl_changed_pos = False #Ci serve per dire che se il semaforo è quello di sempre mi risparmio di fare le operazioni
-    
+        
     def set_lookahead(self, lookahead):
         self._lookahead = lookahead
 
+    def set_follow_lead_vehicle_lookahead(self, follow_lead_vehicle_lookahead):
+        self._follow_lead_vehicle_lookahead = follow_lead_vehicle_lookahead
+        
+    def get_follow_lead_vehicle(self):
+        return self._follow_lead_vehicle 
     # Handles state transitions and computes the goal state.
     def transition_state(self, waypoints, ego_state, closed_loop_speed):
         """Handles state transitions and computes the goal state.  
@@ -76,7 +78,6 @@ class BehaviouralPlanner:
             STOP_COUNTS     : Number of cycles (simulation iterations) 
                               before moving from stop sign.
         """
-        print("STATE: ", self._state)
         # In this state, continue tracking the lane by finding the
         # goal index in the waypoint list that is within the lookahead
         # distance. Then, check to see if the waypoint path intersects
@@ -87,6 +88,7 @@ class BehaviouralPlanner:
         # Make sure that get_closest_index() and get_goal_index() functions are
         # complete, and examine the check_for_stop_signs() function to
         # understand it.
+        
         if self._state == FOLLOW_LANE:
             #print("FOLLOW_LANE")
             # First, find the closest index to the ego vehicle.
@@ -144,6 +146,7 @@ class BehaviouralPlanner:
             #print("DECELERATE_TO_STOP")
             else:
                 print("Speed: ", abs(closed_loop_speed))
+            #print("DECELERATE_TO_STOP")
                 if abs(closed_loop_speed) <= STOP_THRESHOLD:
                     self._state = STAY_STOPPED
                     self._stop_count = 0
@@ -158,39 +161,10 @@ class BehaviouralPlanner:
                 
             if  color==0 and self._traffic_light.is_next():
                 self._state = FOLLOW_LANE
-                """
-                #print("STAY_STOPPED")
-                # We have stayed stopped for the required number of cycles.
-                # Allow the ego vehicle to leave the stop sign. Once it has
-                # passed the stop sign, return to lane following.
-                # You should use the get_closest_index(), get_goal_index(), and 
-                # check_for_stop_signs() helper functions.
-                closest_len, closest_index = get_closest_index(waypoints, ego_state)
-                goal_index = self.get_goal_index(waypoints, ego_state, closest_len, closest_index)
-                while waypoints[goal_index][2] <= 0.1: goal_index += 1
-
-                # We've stopped for the required amount of time, so the new goal 
-                # index for the stop line is not relevant. Use the goal index
-                # that is the lookahead distance away. 
-                                
-                self._goal_index = goal_index
-                self._goal_state = waypoints[goal_index]
-
-                # If the stop sign is no longer along our path, we can now
-                # transition back to our lane following state.
-                
-                #if not stop_sign_found: self._state = FOLLOW_LANE
-
-                self._state = FOLLOW_LANE
-                #if len(self._traffic_light_visited)>0:
-                self._traffic_light_visited[0]=False
-                """
+            
                 
         else:
             raise ValueError('Invalid state value.')
-
-
-
     def set_traffic_light(self, traffic_light:TrafficLight):
         if self._traffic_light is None:
             self._traffic_light = traffic_light
@@ -369,6 +343,10 @@ class BehaviouralPlanner:
             self._follow_lead_vehicle: Boolean flag on whether the ego vehicle
                 should follow (true) the lead car or not (false).
         """
+
+        if lead_car_position is None:
+            self._follow_lead_vehicle = False
+            return
         # Check lead car position delta vector relative to heading, as well as
         # distance, to determine if car should be followed.
         # Check to see if lead vehicle is within range, and is ahead of us.
@@ -378,6 +356,7 @@ class BehaviouralPlanner:
             lead_car_delta_vector = [lead_car_position[0] - ego_state[0], 
                                      lead_car_position[1] - ego_state[1]]
             lead_car_distance = np.linalg.norm(lead_car_delta_vector)
+            
             # In this case, the car is too far away.   
             if lead_car_distance > self._follow_lead_vehicle_lookahead:
                 return
@@ -395,13 +374,18 @@ class BehaviouralPlanner:
             self._follow_lead_vehicle = True
 
         else:
+            
             lead_car_delta_vector = [lead_car_position[0] - ego_state[0], 
                                      lead_car_position[1] - ego_state[1]]
             lead_car_distance = np.linalg.norm(lead_car_delta_vector)
-
-            # Add a 15m buffer to prevent oscillations for the distance check.
-            if lead_car_distance < self._follow_lead_vehicle_lookahead + 15:
+            #print("Distance: ",lead_car_distance)
+            if lead_car_distance > self._follow_lead_vehicle_lookahead + 5:
+                self._follow_lead_vehicle = False
                 return
+            # Add a 15m buffer to prevent oscillations for the distance check.
+            if lead_car_distance < self._follow_lead_vehicle_lookahead + 6:
+                return
+            
             # Check to see if the lead vehicle is still within the ego vehicle's
             # frame of view.
             lead_car_delta_vector = np.divide(lead_car_delta_vector, lead_car_distance)
@@ -411,6 +395,32 @@ class BehaviouralPlanner:
 
             self._follow_lead_vehicle = False
 
+    def check_for_pedestrian(self,ego_state, pedestrian_position,pedestrian_bb):
+        prob_coll_pedestrian=[]
+        for i in range(len( pedestrian_position )):
+            if from_global_to_local_frame(ego_state,pedestrian_position[i])[0]>0 :
+                prob_coll_pedestrian.append(pedestrian_bb[i])
+        return prob_coll_pedestrian
+    def check_for_vehicle(self,ego_state, vehicle_position,vehicle_bb):
+        prob_coll_vehicle=[]
+        for i in range(len( vehicle_position )):
+            if from_global_to_local_frame(ego_state,vehicle_position[i])[0]>0 :
+                prob_coll_vehicle.append(vehicle_bb[i])
+        return prob_coll_vehicle
+    
+    def check_for_closest_vehicle(self,ego_state, vehicle_position):
+        lead_car_idx=None
+        lead_car_local_pos=None
+        
+        for i in range(len(vehicle_position)):
+            local_pos=from_global_to_local_frame(ego_state,vehicle_position[i])
+            if local_pos[0] >= 0 :
+                if (lead_car_idx is None or local_pos[0]<lead_car_local_pos[0]) and local_pos[1]>-1 and local_pos[1]<1:
+                    lead_car_idx=i
+                    lead_car_local_pos=local_pos
+        return lead_car_idx
+
+           
 # Compute the waypoint index that is closest to the ego vehicle, and return
 # it as well as the distance from the ego vehicle to that waypoint.
 def get_closest_index(waypoints, ego_state):
