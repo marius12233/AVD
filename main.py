@@ -43,8 +43,8 @@ from traffic_light import TrafficLight
 ###############################################################################
 # CONFIGURABLE PARAMENTERS DURING EXAM
 ###############################################################################
-PLAYER_START_INDEX =  135#135#141#66 150         #  spawn index for player
-DESTINATION_INDEX = 53#53#90#18        # Setting a Destination HERE
+PLAYER_START_INDEX =  150#7#135#135#141#66 150         #  spawn index for player
+DESTINATION_INDEX = 15#53#53#90#18        # Setting a Destination HERE
 NUM_PEDESTRIANS        = 1#30      # total number of pedestrians to spawn
 NUM_VEHICLES           = 1#30      # total number of vehicles to spawn
 SEED_PEDESTRIANS       = 0      # seed for pedestrian spawn randomizer
@@ -668,8 +668,8 @@ def exec_waypoint_nav_demo(args):
 
         waypoints = []
         waypoints_route = mission_planner.compute_route(source, source_ori, destination, destination_ori)
-        desired_speed = 3.0
-        turn_speed    = 2.5
+        desired_speed = 10.0
+        turn_speed    = 1.5
 
         intersection_nodes = mission_planner.get_intersection_nodes()
 
@@ -1038,7 +1038,9 @@ def exec_waypoint_nav_demo(args):
                 #visualize_waypoints_on_map(map, waypoints, img_map)
                 #img_map_copy = np.copy(img_map)
                 visualize_map(map, img_map, measurements=measurement_data)
+                visualize_waypoints_on_map(map, waypoints, img_map)
                 visualize_goal(map, img_map, waypoints, bp._goal_index)
+                
 
                 res, res_r, cluster, cluster_r = [None]*4
 
@@ -1134,6 +1136,7 @@ def exec_waypoint_nav_demo(args):
                         visualize_point(map, int(res_r[0][0]), int(res_r[0][1]), zr, img_map, color=(238,130,238), r=20)
                         print("RESULT R: ", res_r)
                         traffic_light._last_img_cropped = tl_right_detector.get_img_cropped()
+                        traffic_light._last_mask_cropped = tl_right_detector._mask
                         bp.set_traffic_light(traffic_light)
                         print("ADDED {} to BP".format(res_r))
                         print("Clusters: ", tl_tracking.get_clusters())
@@ -1143,6 +1146,7 @@ def exec_waypoint_nav_demo(args):
                             if res is not None:
                                 print("RESULT: ", res)
                                 traffic_light._last_img_cropped = tl_detector.get_img_cropped()
+                                traffic_light._last_mask_cropped = tl_detector._mask
                                 bp.set_traffic_light(traffic_light)
                 
                 elif vehicle_bbox_traffic_light is not None:
@@ -1151,6 +1155,7 @@ def exec_waypoint_nav_demo(args):
                     if res is not None:
                         print("RESULT: ", res)
                         traffic_light._last_img_cropped = tl_detector.get_img_cropped()
+                        traffic_light._last_mask_cropped = tl_detector._mask
                         bp.set_traffic_light(traffic_light)
                 
                 else:

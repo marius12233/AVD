@@ -61,5 +61,61 @@ def circle_detection(img, display=False):
     
     return circles
 
+
+'''ADDING WAYPOINTS'''
+def waypoints_adder(waypoints, closest_index, goal_index, sampling_rate):
     
+    if(abs(waypoints[closest_index][0]-waypoints[goal_index][0])>0 or abs(waypoints[closest_index][1]-waypoints[goal_index][1])>0):
+        print("waypoint corrente", waypoints[closest_index])
+        step = (abs(waypoints[closest_index][0]-waypoints[goal_index][0]))/sampling_rate
+        print("STEP IS: {}".format(step))
+        added_waypoint = []
+        for el in range(0,10):
+            added_waypoint.append([0,0,0])
+        if(abs(waypoints[closest_index][1]-waypoints[goal_index][1])<0.1):
+            direction = 0
+            if(waypoints[closest_index][0]-waypoints[goal_index][0]>0):
+                direction = -1
+            else:
+                direction = 1
+            
+            for el in range(0,10):
+                added_waypoint[el][0] = waypoints[closest_index][0] + direction*(el+1)*step
+                added_waypoint[el][1] = waypoints[closest_index][1]
+                added_waypoint[el][2] = waypoints[closest_index][2]
+
+            print("added corrected {} \n".format(added_waypoint))    
+            if(direction == -1):
+                added_waypoint.reverse()
+            temp = waypoints[closest_index+1:]
+            waypoints.resize((len(waypoints)+10, 3), refcheck = False )
+            print(waypoints.shape)
+            waypoints[closest_index+1:closest_index+11] = np.array(added_waypoint)[::-1]
+            waypoints[closest_index+11:] = temp  
+
+            print(waypoints)
+            
+        
+        elif(abs(waypoints[closest_index][0]-waypoints[goal_index][0])<0.1):
+            direction = 0
+            if(waypoints[closest_index][1]-waypoints[goal_index][1]>0):
+                direction = -1
+            else:
+                direction = 1
+            
+            for el in range(0,10):
+                added_waypoint[el][1] = waypoints[closest_index][1] + direction*(el+1)*step
+                added_waypoint[el][0] = waypoints[closest_index][0]
+                added_waypoint[el][2] = waypoints[closest_index][2]
+
+            print("added corrected {} \n".format(added_waypoint))    
+            if(direction == -1):
+                added_waypoint.reverse()
+            temp = waypoints[closest_index+1:]
+            waypoints.resize((len(waypoints)+10, 3), refcheck = False )
+            print(waypoints.shape)
+            waypoints[closest_index+1:closest_index+11] = np.array(added_waypoint)[::-1]
+            waypoints[closest_index+11:] = temp  
+
+            print(waypoints)
         

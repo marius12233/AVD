@@ -2,7 +2,7 @@
 from traffic_light import TrafficLight
 import numpy as np
 import math
-from utils import from_global_to_local_frame
+from utils import from_global_to_local_frame, waypoints_adder
 
 # State machine states
 FOLLOW_LANE = 0
@@ -30,7 +30,8 @@ class BehaviouralPlanner:
         self._no_tl_found_counter = 0
         self._traffic_light:TrafficLight = None
         self._has_tl_changed_pos = False #Ci serve per dire che se il semaforo è quello di sempre mi risparmio di fare le operazioni
-    
+        self._added = False
+
     def set_lookahead(self, lookahead):
         self._lookahead = lookahead
 
@@ -136,9 +137,20 @@ class BehaviouralPlanner:
 
             #Decellero per entrare nello stato dis top, tuttavia se il semaforo diventa verde riparto
             #Riparto anche se il semaforo è next
+            closest_len, closest_index = get_closest_index(waypoints, ego_state)
+            goal_index, traffic_light_found = self.check_for_traffic_light(waypoints, closest_index, self._goal_index, ego_state)
+            if traffic_light_found: 
+                self._goal_index = goal_index
+                self._goal_state = waypoints[goal_index]
+                self._goal_state[2] = 0
+                print("Waypoint: ", self._goal_state)
+                self._state = DECELERATE_TO_STOP
+
             if self._traffic_light is not None:
                 if self._traffic_light.get_color() == 0 or not self._traffic_light.is_next():
                     self._state = FOLLOW_LANE
+            
+
 
 
             #print("DECELERATE_TO_STOP")
@@ -247,9 +259,12 @@ class BehaviouralPlanner:
         min_key = None
         print("DISTANCES")
         print("======================")
+
+
         if not self._traffic_light.has_changed: #Se è cambiata la posizione del semaforo calcola di nuovo il goal index
             self._traffic_light.has_changed = False
         else:
+
             for i in range(closest_index, goal_index):
                 # Check to see if path segment crosses any of the stop lines.
 
@@ -279,15 +294,20 @@ class BehaviouralPlanner:
                 else:
                     print("WP LOCAL NOT FOUND!!")
                         
-                if min_dist > MAX_DIST_TO_STOP:
-                    print("min dist > max dist to stop")
-                    return goal_index, False
+            if min_dist > MAX_DIST_TO_STOP:
+                print("min dist > max dist to stop")
+                #return goal_index, False
+                #waypoints_adder(waypoints, min_idx, goal_index, sampling_rate=1)
 
-                # If there is an intersection with a stop line, update
-                # the goal state to stop before the goal line.
-                if min_idx is not None:
-                    goal_index = min_idx
-                    return goal_index, True
+                #goal_index = min_idx+1
+                #return goal_index, True
+                return goal_index, False
+
+            # If there is an intersection with a stop line, update
+            # the goal state to stop before the goal line.
+            if min_idx is not None:
+                goal_index = min_idx
+                return goal_index, True
 
         return goal_index, False
 
