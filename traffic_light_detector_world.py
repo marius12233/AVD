@@ -9,8 +9,10 @@ from math import cos, sin, pi,tan
 import os
 import sys
 from traffic_light_detector import TrafficLightDetector, get_model
-sys.path.append(os.path.abspath(sys.path[0] + '/..'))
+from utils import circle_detection
 
+sys.path.append(os.path.abspath(sys.path[0] + '/..'))
+from traffic_sign_recognition import TrafficLightRecognition
 # Utils : X - Rotation
 def rotate_x(angle):
     R = np.mat([[ 1,         0,           0],
@@ -85,9 +87,11 @@ class TrafficLightDetectorWorld(TrafficLightDetector):
 
         # Lambda Function for transformation of image frame in camera frame 
         self.image_to_camera_frame = lambda object_camera_frame: np.dot(image_camera_frame , object_camera_frame)
+            
+        
  
     
-    def detect(self, image, depth_data, speed_limit = 5.0, seg_img=None):
+    def detect(self, image, depth_data, speed_limit = 5.0, seg_img=None, palette_img=None):
         #height, width, _ = image.shape
         vehicle_frame_list = []
 
@@ -106,11 +110,24 @@ class TrafficLightDetectorWorld(TrafficLightDetector):
             y = bbox[1] + (bbox[3] - bbox[1])//2
             
         else:
+            #Check if there are circles in segmentation image
+            
             point = self.get_point_with_segmentation(seg_img) #make use of seg map to improve precision
             if point is None:
                 return
             x,y = point
+        """
+        #Filter for traffic light signal
+        img = self.get_img_cropped()
+        cls_idx, score = TrafficLightRecognition().predict(img)
+        #11 is the tl label
+        print("TL Recognition pred, score: ", cls_idx, score)
         
+        if cls_idx<9:
+            if score>0.2:
+                return None
+        """
+
         points.append((x,y))
 
 

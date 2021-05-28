@@ -8,12 +8,12 @@ FOLLOW_LANE = 0
 DECELERATE_TO_STOP = 1
 STAY_STOPPED = 2
 # Stop speed threshold
-STOP_THRESHOLD = 0.02
+STOP_THRESHOLD = 0.03
 # Number of cycles before moving from stop sign.
 STOP_COUNTS = 10
 
 MAX_DIST_TO_STOP = 12
-MIN_DIST_TO_STOP = 3
+MIN_DIST_TO_STOP = 3 
 
 class BehaviouralPlanner:
     def __init__(self, lookahead, lead_vehicle_lookahead):
@@ -28,6 +28,8 @@ class BehaviouralPlanner:
         self._goal_index                    = 0
         self._stop_count                    = 0
         self._lookahead_collision_index     = 0
+        self._no_tl_found_counter = 0
+        self._traffic_light = None
     
     def set_lookahead(self, lookahead):
         self._lookahead = lookahead
@@ -99,6 +101,7 @@ class BehaviouralPlanner:
             self._goal_state = waypoints[goal_index]
             # Check stop signs
             goal_index, traffic_light_found = self.check_for_traffic_light(waypoints, closest_index, goal_index, ego_state)
+            
             if traffic_light_found: 
                 self._goal_index = goal_index
                 self._goal_state = waypoints[goal_index]
@@ -112,7 +115,25 @@ class BehaviouralPlanner:
         # stop, and compare to STOP_THRESHOLD.  If so, transition to the next
         # state.
         elif self._state == DECELERATE_TO_STOP:
+            """
+            #If you are decelerating and the traffic lights become green, you can go!
+            closest_len, closest_index = get_closest_index(waypoints, ego_state)
+
+            # Next, find the goal index that lies within the lookahead distance
+            # along the waypoints.
+            goal_index = self.get_goal_index(waypoints, ego_state, closest_len, closest_index)
+
+            self._goal_state = waypoints[goal_index]
+            
+            goal_index, traffic_light_found = self.check_for_traffic_light(waypoints, closest_index, goal_index, ego_state)
+            if traffic_light_found:    
+                self._state = FOLLOW_LANE
+            """
+            
+            #Prima testare se si ferma sotto sotto i waypoints
+
             #print("DECELERATE_TO_STOP")
+            print("Speed: ", abs(closed_loop_speed))
             if abs(closed_loop_speed) <= STOP_THRESHOLD:
                 self._state = STAY_STOPPED
                 self._stop_count = 0
@@ -149,16 +170,22 @@ class BehaviouralPlanner:
                 #if not stop_sign_found: self._state = FOLLOW_LANE
 
                 self._state = FOLLOW_LANE
-                key=0 #k is ever equal to 0
-                self._traffic_light_visited[key]=False
+                #if len(self._traffic_light_visited)>0:
+                self._traffic_light_visited[0]=False
                 
         else:
             raise ValueError('Invalid state value.')
 
+    def no_traffic_light_found(self):
+        self._no_tl_found_counter+=1
+        if (self._state==DECELERATE_TO_STOP or self._state==STAY_STOPPED) and self._no_tl_found_counter>=5: #Se non è stato trovato alcun semaforo per più di 5 volte mentre stai decellerando o sei fermo allora vai
+            self._traffic_light_fences = []
+            self._traffic_light_visited = []
+            self._no_tl_found_counter=0
+            self._state = FOLLOW_LANE #TODO: capire se è giusto impostare lo stato in questa funzione
 
-    # Checks the given segment of the waypoint list to see if it
-    # intersects with a stop line. If any index does, return the
-    # new goal state accordingly.
+
+    
     def check_for_traffic_light(self, waypoints, closest_index, goal_index, ego_state):
         """Checks for a stop sign that is intervening the goal path.
 
@@ -233,9 +260,14 @@ class BehaviouralPlanner:
             if dist_wp_s < min_dist:
                 min_dist = dist_wp_s
                 min_idx = i
+
                 
         
         print("MIN DIST: ", min_dist)
+        if min_idx is not None:
+            print("WP: ", min_idx)
+        else:
+            print("WP LOCAL NOT FOUND!!")
                 
         if min_dist > MAX_DIST_TO_STOP:
             return goal_index, False
@@ -245,6 +277,7 @@ class BehaviouralPlanner:
         if min_idx is not None:
             goal_index = min_idx
             self._traffic_light_visited[0] = True
+            self._no_tl_found_counter=0
             return goal_index, True
 
         return goal_index, False
