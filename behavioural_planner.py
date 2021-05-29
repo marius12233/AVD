@@ -389,6 +389,7 @@ class BehaviouralPlanner:
             # vehicle lies within +/- 45 degrees of the ego vehicle's heading.
             print("Angle:",np.dot(lead_car_delta_vector, 
                       ego_heading_vector) )
+
             if np.dot(lead_car_delta_vector, 
                       ego_heading_vector) < (1 / math.sqrt(2)):
                 return
@@ -441,17 +442,35 @@ class BehaviouralPlanner:
                 prob_coll_vehicle.append(vehicle_bb[i])
         return prob_coll_vehicle
     
-    def check_for_closest_vehicle(self,ego_state, vehicle_position,vehicle_yaw):
+    def check_for_closest_vehicle(self,ego_state, ego_orientation, vehicle_position,vehicle_yaw, vehicle_rot_x, vehicle_rot_y):
         
         lead_car_idx=None
         lead_car_local_pos=None
+        ego_rot_x = ego_orientation[0]
+        ego_rot_y = ego_orientation[1]
+        ego_angle = math.atan2(ego_rot_y,ego_rot_x)
+        if ego_angle < 0:
+            ego_angle+=2*math.pi
         
+
+        angle = None
         for i in range(len(vehicle_position)):
             local_pos=from_global_to_local_frame(ego_state,vehicle_position[i])
-            if local_pos[0] >= 0  :
+            vehicle_angle = math.atan2(vehicle_rot_y[i],vehicle_rot_x[i])
+            if vehicle_angle < 0:
+                vehicle_angle+=2*math.pi
+                
+            if local_pos[0] >= 0 and (vehicle_angle < ego_angle + math.pi/4 and  vehicle_angle > ego_angle - math.pi/4):  #and not  (np.sign(ego_rot_x*vehicle_rot_x[i]) <0 and np.sign(ego_rot_y*vehicle_rot_y[i]) < 0):
                 if (lead_car_idx is None or local_pos[0]<lead_car_local_pos[0]) and local_pos[1]>-5 and local_pos[1]<5:
                     lead_car_idx=i
                     lead_car_local_pos=local_pos
+                    angle = vehicle_angle
+
+        if lead_car_idx:
+            print("ATAN Other: ", angle)
+        
+            #print("Other orientation: ", vehicle_rot_x[lead_car_idx], vehicle_rot_y[lead_car_idx] )
+            
         return lead_car_idx
 
            
