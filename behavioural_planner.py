@@ -421,6 +421,7 @@ class BehaviouralPlanner:
             if from_global_to_local_frame(ego_state,pedestrian_position[i])[0]>0 :
                 prob_coll_pedestrian.append(pedestrian_bb[i])
         return prob_coll_pedestrian
+        
     def check_for_vehicle(self,ego_state, vehicle_position,vehicle_bb):
         prob_coll_vehicle=[]
         for i in range(len( vehicle_position )):

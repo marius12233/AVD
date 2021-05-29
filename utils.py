@@ -65,6 +65,7 @@ def circle_detection(img, display=False):
 '''ADDING WAYPOINTS'''
 def waypoints_adder(waypoints, closest_index, goal_index, sampling_rate):
     
+    
     if(abs(waypoints[closest_index][0]-waypoints[goal_index][0])>0 or abs(waypoints[closest_index][1]-waypoints[goal_index][1])>0):
         print("waypoint corrente", waypoints[closest_index])
         step = (abs(waypoints[closest_index][0]-waypoints[goal_index][0]))/sampling_rate

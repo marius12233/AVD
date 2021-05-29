@@ -86,7 +86,7 @@ class TrafficLight:
             return
         local_frame_pos = from_global_to_local_frame(ego_state, self._pos)
         #Se è stato chiamato questo metodo e il local frame pos del traffic light sta dietro di me, allora questo semaforo non è più quello prossimo
-        if local_frame_pos[0]<1: #Se il traffic light sta dietro il veicolo
+        if local_frame_pos[0]<0: #Se il traffic light sta dietro il veicolo
             self._is_next=False
         
         
