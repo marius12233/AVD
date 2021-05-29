@@ -380,13 +380,15 @@ class BehaviouralPlanner:
             # In this case, the car is too far away.   
             if lead_car_distance > self._follow_lead_vehicle_lookahead:
                 return
-
+            print("-----Lead Vehicle Distance:  ", lead_car_distance,"-------",self._follow_lead_vehicle)
             lead_car_delta_vector = np.divide(lead_car_delta_vector, 
                                               lead_car_distance)
             ego_heading_vector = [math.cos(ego_state[2]), 
                                   math.sin(ego_state[2])]
             # Check to see if the relative angle between the lead vehicle and the ego
             # vehicle lies within +/- 45 degrees of the ego vehicle's heading.
+            print("Angle:",np.dot(lead_car_delta_vector, 
+                      ego_heading_vector) )
             if np.dot(lead_car_delta_vector, 
                       ego_heading_vector) < (1 / math.sqrt(2)):
                 return
@@ -399,6 +401,7 @@ class BehaviouralPlanner:
                                      lead_car_position[1] - ego_state[1]]
             lead_car_distance = np.linalg.norm(lead_car_delta_vector)
             #print("Distance: ",lead_car_distance)
+            print("-----Lead Vehicle Distance:  ", lead_car_distance,"-------",self._follow_lead_vehicle)
             if lead_car_distance > self._follow_lead_vehicle_lookahead + 5:
                 self._follow_lead_vehicle = False
                 return
@@ -410,11 +413,13 @@ class BehaviouralPlanner:
             # frame of view.
             lead_car_delta_vector = np.divide(lead_car_delta_vector, lead_car_distance)
             ego_heading_vector = [math.cos(ego_state[2]), math.sin(ego_state[2])]
+            print("Angle:",np.dot(lead_car_delta_vector, 
+                      ego_heading_vector) )
             if np.dot(lead_car_delta_vector, ego_heading_vector) > (1 / math.sqrt(2)):
                 return
 
             self._follow_lead_vehicle = False
-
+        
     def check_for_pedestrian(self,ego_state, pedestrian_position,pedestrian_bb):
         prob_coll_pedestrian=[]
         for i in range(len( pedestrian_position )):
@@ -425,18 +430,26 @@ class BehaviouralPlanner:
     def check_for_vehicle(self,ego_state, vehicle_position,vehicle_bb):
         prob_coll_vehicle=[]
         for i in range(len( vehicle_position )):
-            if from_global_to_local_frame(ego_state,vehicle_position[i])[0]>0 :
+            obs_local_pos=from_global_to_local_frame(ego_state,vehicle_position[i])
+            if obs_local_pos[0]>0 and obs_local_pos[0] < 20 and obs_local_pos[1]<5 and obs_local_pos[1]>5:
+                lead_car_delta_vector = [vehicle_position[i][0] - ego_state[0], 
+                                     vehicle_position[i][1] - ego_state[1]]
+                lead_car_distance = np.linalg.norm(lead_car_delta_vector)
+                print("-------Collision car --------")
+                print("Distance",lead_car_distance)
+                
                 prob_coll_vehicle.append(vehicle_bb[i])
         return prob_coll_vehicle
     
-    def check_for_closest_vehicle(self,ego_state, vehicle_position):
+    def check_for_closest_vehicle(self,ego_state, vehicle_position,vehicle_yaw):
+        
         lead_car_idx=None
         lead_car_local_pos=None
         
         for i in range(len(vehicle_position)):
             local_pos=from_global_to_local_frame(ego_state,vehicle_position[i])
-            if local_pos[0] >= 0 :
-                if (lead_car_idx is None or local_pos[0]<lead_car_local_pos[0]) and local_pos[1]>-1 and local_pos[1]<1:
+            if local_pos[0] >= 0  :
+                if (lead_car_idx is None or local_pos[0]<lead_car_local_pos[0]) and local_pos[1]>-5 and local_pos[1]<5:
                     lead_car_idx=i
                     lead_car_local_pos=local_pos
         return lead_car_idx

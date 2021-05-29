@@ -43,8 +43,8 @@ from traffic_light import TrafficLight
 ###############################################################################
 # CONFIGURABLE PARAMENTERS DURING EXAM
 ###############################################################################
-PLAYER_START_INDEX = 22#135#135#141#66 150         #  spawn index for player
-DESTINATION_INDEX = 55#53#53#90#18        # Setting a Destination HERE
+PLAYER_START_INDEX = 6#135#135#141#66 150         #  spawn index for player
+DESTINATION_INDEX = 15#53#53#90#18        # Setting a Destination HERE
 NUM_PEDESTRIANS        = 30      # total number of pedestrians to spawn
 NUM_VEHICLES           = 30      # total number of vehicles to spawn
 SEED_PEDESTRIANS       = 0      # seed for pedestrian spawn randomizer
@@ -1026,7 +1026,7 @@ def exec_waypoint_nav_demo(args):
 
             # Obtain Lead Vehicle information.
             prob_obs ={}
-            prob_obs["vehicle"]={"pos":[],"speed":[],"bounding_box":[]}
+            prob_obs["vehicle"]={"pos":[],"speed":[],"bounding_box":[],"yaw":[]}
             prob_obs["pedestrian"]={"pos":[],"bounding_box":[]}
             
             for agent in measurement_data.non_player_agents:
@@ -1036,7 +1036,7 @@ def exec_waypoint_nav_demo(args):
                              agent.vehicle.transform.location.y])
                     prob_obs["vehicle"]["speed"].append(agent.vehicle.forward_speed)
                     prob_obs["vehicle"]["bounding_box"].append(obstacle_to_world(agent.vehicle.transform.location,agent.vehicle.bounding_box.extent,agent.vehicle.transform.rotation))
-                    
+                    prob_obs["vehicle"]["yaw"].append(agent.vehicle.transform.rotation.yaw)
                     
             
                 
@@ -1078,8 +1078,8 @@ def exec_waypoint_nav_demo(args):
                     if bbox is not None:
                         cv2.rectangle(image_cityscapes_Segmentationr, (bbox[0], bbox[1]), (bbox[2], bbox[3]), (0,0,0), thickness=5)
                     
-                    cv2.imshow("CameraSegmentationRight", image_cityscapes_Segmentationr)
-                    cv2.waitKey(10)
+                    #cv2.imshow("CameraSegmentationRight", image_cityscapes_Segmentationr)
+                    #cv2.waitKey(10)
 
                     vehicle_bbox_traffic_light_r = tl_right_detector.detect(bgr_img_r, depth_data_r, seg_img=labels_to_array(segmentation_data_r), palette_img=image_cityscapes_Segmentationr)
                     camera_data_r = tl_right_detector.draw_enlarged_boxes_on_image(camera_data_r)
@@ -1091,8 +1091,8 @@ def exec_waypoint_nav_demo(args):
                 if camera_data is not None and depth_data is not None and segmentation_data is not None:
                     image_cityscapes_Segmentation = labels_to_cityscapes_palette(sensor_data["Segmentation"])
                     image_cityscapes_Segmentation = np.array(image_cityscapes_Segmentation,dtype=np.uint8)
-                    cv2.imshow("CameraSegmentation", image_cityscapes_Segmentation)
-                    cv2.waitKey(10)
+                    #cv2.imshow("CameraSegmentation", image_cityscapes_Segmentation)
+                    #cv2.waitKey(10)
 
                     camera_data = to_bgra_array(camera_data)
                     depth_data = depth_to_array(depth_data)  
@@ -1101,8 +1101,8 @@ def exec_waypoint_nav_demo(args):
                     vehicle_bbox_traffic_light = tl_detector.detect(bgr_img, depth_data, seg_img=labels_to_array(segmentation_data))
                     camera_data = tl_detector.draw_enlarged_boxes_on_image(camera_data)
 
-                    cv2.imshow("CameraRGB", camera_data)
-                    cv2.waitKey(10)
+                    #cv2.imshow("CameraRGB", camera_data)
+                    #cv2.waitKey(10)
 
                 #visualize_waypoints_on_map(map, waypoints, img_map)
                 #img_map_copy = np.copy(img_map)
@@ -1112,7 +1112,7 @@ def exec_waypoint_nav_demo(args):
                 visualize_goal(map, img_map_copy, waypoints, bp._goal_index)
                 ego_x, ego_y, _, _, _, ego_yaw = get_current_pose(measurement_data)
                 ego_state = [ego_x, ego_y, ego_yaw] #TODO vehicle location
-                print("Vehicle state: ", ego_state)
+                #print("Vehicle state: ", ego_state)
                 
 
                 res, res_r, kf_pos = [None]*3
@@ -1241,8 +1241,9 @@ def exec_waypoint_nav_demo(args):
 
                 kf_pos = tl_tracking.get_kf_pos()
                 if not kf_pos is None:
-                    print("KF POS: ", kf_pos)
-                    visualize_point(map, int(kf_pos[0]), int(kf_pos[1]), 1, img_map, color=(0,0,0), r=15)
+                    pass
+                    #print("KF POS: ", kf_pos)
+                    #visualize_point(map, int(kf_pos[0]), int(kf_pos[1]), 1, img_map, color=(0,0,0), r=15)
                 
                 ###################################################################################
 
@@ -1254,7 +1255,7 @@ def exec_waypoint_nav_demo(args):
                 # Current speed should be open loop for the velocity profile generation.
                 ego_state = [current_x, current_y, current_yaw, open_loop_speed]
                 
-                closest_vehicle_index=bp.check_for_closest_vehicle(ego_state,prob_obs["vehicle"]["pos"])
+                closest_vehicle_index=bp.check_for_closest_vehicle(ego_state,prob_obs["vehicle"]["pos"],prob_obs["vehicle"]["yaw"])
                 
 
                 
@@ -1308,7 +1309,7 @@ def exec_waypoint_nav_demo(args):
                     # Compute the velocity profile for the path, and compute the waypoints.
                     desired_speed = bp._goal_state[2]
                     if bp.get_follow_lead_vehicle() :
-                        print("SEGUENDO IL VEICOLO")
+                        
                         lead_car_state = [prob_obs["vehicle"]["pos"][closest_vehicle_index][0], prob_obs["vehicle"]["pos"][closest_vehicle_index][1], prob_obs["vehicle"]["speed"][closest_vehicle_index]]
                     else :
                         lead_car_state=None
