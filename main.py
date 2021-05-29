@@ -43,8 +43,8 @@ from traffic_light import TrafficLight
 ###############################################################################
 # CONFIGURABLE PARAMENTERS DURING EXAM
 ###############################################################################
-PLAYER_START_INDEX = 22#6#135#135#141#66 150         #  spawn index for player
-DESTINATION_INDEX = 55#15#53#53#90#18        # Setting a Destination HERE
+PLAYER_START_INDEX = 6#6#135#135#141#66 150         #  spawn index for player
+DESTINATION_INDEX = 15#15#53#53#90#18        # Setting a Destination HERE
 NUM_PEDESTRIANS        = 30      # total number of pedestrians to spawn
 NUM_VEHICLES           = 30      # total number of vehicles to spawn
 SEED_PEDESTRIANS       = 0      # seed for pedestrian spawn randomizer
@@ -89,7 +89,7 @@ DIST_THRESHOLD_TO_LAST_WAYPOINT = 2.0  # some distance from last position before
                                        # simulation ends
 
 # Planning Constants
-NUM_PATHS = 9#7
+NUM_PATHS = 7
 BP_LOOKAHEAD_BASE      = 16.0              # m
 BP_LOOKAHEAD_TIME      = 1.0              # s
 PATH_OFFSET            = 1.5              # m
@@ -1026,7 +1026,7 @@ def exec_waypoint_nav_demo(args):
 
             # Obtain Lead Vehicle information.
             prob_obs ={}
-            prob_obs["vehicle"]={"pos":[],"speed":[],"bounding_box":[],"yaw":[], "x_rot":[], "y_rot":[]}
+            prob_obs["vehicle"]={"pos":[],"speed":[],"bounding_box":[], "rot":[]}
             prob_obs["pedestrian"]={"pos":[],"bounding_box":[]}
             
             for agent in measurement_data.non_player_agents:
@@ -1036,9 +1036,9 @@ def exec_waypoint_nav_demo(args):
                              agent.vehicle.transform.location.y])
                     prob_obs["vehicle"]["speed"].append(agent.vehicle.forward_speed)
                     prob_obs["vehicle"]["bounding_box"].append(obstacle_to_world(agent.vehicle.transform.location,agent.vehicle.bounding_box.extent,agent.vehicle.transform.rotation))
-                    prob_obs["vehicle"]["yaw"].append(agent.vehicle.transform.rotation.yaw)
-                    prob_obs["vehicle"]["x_rot"].append(agent.vehicle.transform.orientation.x)
-                    prob_obs["vehicle"]["y_rot"].append(agent.vehicle.transform.orientation.y)
+                    
+                    prob_obs["vehicle"]["rot"].append([agent.vehicle.transform.orientation.x,agent.vehicle.transform.orientation.y])
+                    
                     
             
                 
@@ -1259,7 +1259,7 @@ def exec_waypoint_nav_demo(args):
 
                 ego_orientation = measurement_data.player_measurements.transform.orientation 
                 
-                closest_vehicle_index=bp.check_for_closest_vehicle(ego_state,(ego_orientation.x, ego_orientation.y),prob_obs["vehicle"]["pos"],prob_obs["vehicle"]["yaw"],prob_obs["vehicle"]["x_rot"], prob_obs["vehicle"]["y_rot"])
+                closest_vehicle_index=bp.check_forward_closest_vehicle(ego_state,(ego_orientation.x, ego_orientation.y),prob_obs["vehicle"]["pos"], prob_obs["vehicle"]["rot"])
                 
 
                 
@@ -1280,8 +1280,10 @@ def exec_waypoint_nav_demo(args):
 
                     
                 if  bp.get_follow_lead_vehicle():
+                    print("----Follow Lead----")
                     prob_obs["vehicle"]["bounding_box"].pop(closest_vehicle_index)        
                     prob_obs["vehicle"]["pos"].pop(closest_vehicle_index)
+                    prob_obs["vehicle"]["rot"].pop(closest_vehicle_index)
                 # Compute the goal state set from the behavioural planner's computed goal state.
                 goal_state_set = lp.get_goal_state_set(bp._goal_index, bp._goal_state, waypoints, ego_state)
 

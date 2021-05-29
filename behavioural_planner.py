@@ -380,19 +380,7 @@ class BehaviouralPlanner:
             # In this case, the car is too far away.   
             if lead_car_distance > self._follow_lead_vehicle_lookahead:
                 return
-            print("-----Lead Vehicle Distance:  ", lead_car_distance,"-------",self._follow_lead_vehicle)
-            lead_car_delta_vector = np.divide(lead_car_delta_vector, 
-                                              lead_car_distance)
-            ego_heading_vector = [math.cos(ego_state[2]), 
-                                  math.sin(ego_state[2])]
-            # Check to see if the relative angle between the lead vehicle and the ego
-            # vehicle lies within +/- 45 degrees of the ego vehicle's heading.
-            print("Angle:",np.dot(lead_car_delta_vector, 
-                      ego_heading_vector) )
-
-            if np.dot(lead_car_delta_vector, 
-                      ego_heading_vector) < (1 / math.sqrt(2)):
-                return
+           
 
             self._follow_lead_vehicle = True
 
@@ -401,25 +389,16 @@ class BehaviouralPlanner:
             lead_car_delta_vector = [lead_car_position[0] - ego_state[0], 
                                      lead_car_position[1] - ego_state[1]]
             lead_car_distance = np.linalg.norm(lead_car_delta_vector)
-            #print("Distance: ",lead_car_distance)
-            print("-----Lead Vehicle Distance:  ", lead_car_distance,"-------",self._follow_lead_vehicle)
+            
+            
             if lead_car_distance > self._follow_lead_vehicle_lookahead + 5:
                 self._follow_lead_vehicle = False
                 return
+            
             # Add a 15m buffer to prevent oscillations for the distance check.
             if lead_car_distance < self._follow_lead_vehicle_lookahead + 6:
                 return
             
-            # Check to see if the lead vehicle is still within the ego vehicle's
-            # frame of view.
-            lead_car_delta_vector = np.divide(lead_car_delta_vector, lead_car_distance)
-            ego_heading_vector = [math.cos(ego_state[2]), math.sin(ego_state[2])]
-            print("Angle:",np.dot(lead_car_delta_vector, 
-                      ego_heading_vector) )
-            if np.dot(lead_car_delta_vector, ego_heading_vector) > (1 / math.sqrt(2)):
-                return
-
-            self._follow_lead_vehicle = False
         
     def check_for_pedestrian(self,ego_state, pedestrian_position,pedestrian_bb):
         prob_coll_pedestrian=[]
@@ -432,17 +411,11 @@ class BehaviouralPlanner:
         prob_coll_vehicle=[]
         for i in range(len( vehicle_position )):
             obs_local_pos=from_global_to_local_frame(ego_state,vehicle_position[i])
-            if obs_local_pos[0]>0 and obs_local_pos[0] < 20 and obs_local_pos[1]<5 and obs_local_pos[1]>5:
-                lead_car_delta_vector = [vehicle_position[i][0] - ego_state[0], 
-                                     vehicle_position[i][1] - ego_state[1]]
-                lead_car_distance = np.linalg.norm(lead_car_delta_vector)
-                print("-------Collision car --------")
-                print("Distance",lead_car_distance)
-                
+            if obs_local_pos[0]>0 and obs_local_pos[0] < 20 and obs_local_pos[1]<5 and obs_local_pos[1]>-5:
                 prob_coll_vehicle.append(vehicle_bb[i])
         return prob_coll_vehicle
     
-    def check_for_closest_vehicle(self,ego_state, ego_orientation, vehicle_position,vehicle_yaw, vehicle_rot_x, vehicle_rot_y):
+    def check_forward_closest_vehicle(self, ego_state, ego_orientation, vehicle_position, vehicle_rot):
         
         lead_car_idx=None
         lead_car_local_pos=None
@@ -453,23 +426,19 @@ class BehaviouralPlanner:
             ego_angle+=2*math.pi
         
 
-        angle = None
+        
         for i in range(len(vehicle_position)):
-            local_pos=from_global_to_local_frame(ego_state,vehicle_position[i])
-            vehicle_angle = math.atan2(vehicle_rot_y[i],vehicle_rot_x[i])
+            vehicle_angle = math.atan2(vehicle_rot[i][1],vehicle_rot[i][0])
             if vehicle_angle < 0:
                 vehicle_angle+=2*math.pi
-                
-            if local_pos[0] >= 0 and (vehicle_angle < ego_angle + math.pi/4 and  vehicle_angle > ego_angle - math.pi/4):  #and not  (np.sign(ego_rot_x*vehicle_rot_x[i]) <0 and np.sign(ego_rot_y*vehicle_rot_y[i]) < 0):
-                if (lead_car_idx is None or local_pos[0]<lead_car_local_pos[0]) and local_pos[1]>-5 and local_pos[1]<5:
-                    lead_car_idx=i
-                    lead_car_local_pos=local_pos
-                    angle = vehicle_angle
-
-        if lead_car_idx:
-            print("ATAN Other: ", angle)
-        
-            #print("Other orientation: ", vehicle_rot_x[lead_car_idx], vehicle_rot_y[lead_car_idx] )
+            local_pos=from_global_to_local_frame(ego_state,vehicle_position[i])
+            
+              
+            if local_pos[0] >= 0: 
+                if (vehicle_angle < ego_angle + math.pi/4 and  vehicle_angle > ego_angle - math.pi/4):  
+                    if (lead_car_idx is None or local_pos[0]<lead_car_local_pos[0]) and local_pos[1]>-5 and local_pos[1]<5 :
+                        lead_car_idx=i
+                        lead_car_local_pos=local_pos
             
         return lead_car_idx
 
