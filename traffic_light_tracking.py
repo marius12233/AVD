@@ -3,8 +3,33 @@ import numpy as np
 from math import cos, sin, pi,tan
 from scipy.spatial import distance
 from utils import from_global_to_local_frame, from_local_to_global_frame, centeroidnp
+from pykalman import KalmanFilter
 
 MAX_DIM_COLORS = 7
+
+def apply_kalman_filter(measurements, show=False):
+    if len(measurements) <2:
+        return None
+    initial_state_mean = [measurements[0, 0],
+                        0,
+                        measurements[0, 1],
+                        0]
+
+    transition_matrix = [[1, 1, 0, 0],
+                        [0, 1, 0, 0],
+                        [0, 0, 1, 1],
+                        [0, 0, 0, 1]]
+
+    observation_matrix = [[1, 0, 0, 0],
+                        [0, 0, 1, 0]]
+
+    kf = KalmanFilter(transition_matrices = transition_matrix,
+                    observation_matrices = observation_matrix,
+                    initial_state_mean = initial_state_mean, n_dim_obs=2)
+
+    kf1 = kf.em(measurements, n_iter=5)
+    (smoothed_state_means, smoothed_state_covariances) = kf1.smooth(measurements)
+    return (smoothed_state_means[-1][0], smoothed_state_means[-1][2])
 
 class TrafficLightTracking:
 
@@ -16,11 +41,12 @@ class TrafficLightTracking:
         self._max_distance_to_vehicle = 60
         self.min_measurements = 5
         self._intersection_nodes = intersection_nodes
-        self._track_intersection_tl = {}
-        for intersection_node in self._intersection_nodes:
-            self._track_intersection_tl[(intersection_node[0], intersection_node[1])] = None
 
-    
+        ## KALMAN FILTER meas
+        self._measurements = []
+        self._kf_pos = None
+
+
     def find_next_intersection(self, ego_state):
         intersection_nodes = self._intersection_nodes
         if intersection_nodes is None:
@@ -59,16 +85,27 @@ class TrafficLightTracking:
                 dist = distance
                 next_intersection = point
 
-        return next_intersection        
+        return next_intersection
+
+    def get_kf_pos(self):
+        return self._kf_pos        
 
 
     def track(self,ego_state, vehicle_frame_pos, color):
-        x_global, y_global = from_local_to_global_frame(ego_state, vehicle_frame_pos)        
+        x_global, y_global = from_local_to_global_frame(ego_state, vehicle_frame_pos)       
         self.update(ego_state, (x_global, y_global), color)
     
 
     def update(self, ego_state, pos_global, color):
         x_global, y_global = pos_global
+        ### USE KALMAN FILTER
+        self._measurements.append((x_global, y_global))
+        if len(self._measurements)>self.min_measurements:
+            meas = np.asarray(self._measurements)
+            print("meas:", meas)
+            print("Size: ", meas)
+            self._kf_pos = apply_kalman_filter(meas)
+
 
         #Filter points
         #Use distance from next intersection to filter out data from other signals

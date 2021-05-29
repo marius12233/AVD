@@ -139,7 +139,7 @@ class TrafficLightDetectorWorld(TrafficLightDetector):
             
 
             # Projection Pixel to Image Frame
-            depth = depth_data[y][x] * 1000  # Consider depth in meters    
+            depth = depth_data[y][x]  * 1000  # Consider depth in meters    
 
             image_frame_vect = np.dot(self.inv_intrinsic_matrix, pixel) * depth
             

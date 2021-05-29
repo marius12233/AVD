@@ -30,7 +30,7 @@ from carla.client     import make_carla_client, VehicleControl
 from carla.settings   import CarlaSettings
 from carla.tcp        import TCPConnectionError
 from carla.controller import utils
-from carla.sensor import Camera
+from carla.sensor import Camera, Lidar
 from carla.image_converter import *
 from carla.planner.city_track import CityTrack
 from carla.planner.map import CarlaMap
@@ -43,10 +43,10 @@ from traffic_light import TrafficLight
 ###############################################################################
 # CONFIGURABLE PARAMENTERS DURING EXAM
 ###############################################################################
-PLAYER_START_INDEX =  150#7#135#135#141#66 150         #  spawn index for player
-DESTINATION_INDEX = 15#53#53#90#18        # Setting a Destination HERE
-NUM_PEDESTRIANS        = 1#30      # total number of pedestrians to spawn
-NUM_VEHICLES           = 1#30      # total number of vehicles to spawn
+PLAYER_START_INDEX = 22#135#135#141#66 150         #  spawn index for player
+DESTINATION_INDEX = 55#53#53#90#18        # Setting a Destination HERE
+NUM_PEDESTRIANS        = 30      # total number of pedestrians to spawn
+NUM_VEHICLES           = 30      # total number of vehicles to spawn
 SEED_PEDESTRIANS       = 0      # seed for pedestrian spawn randomizer
 SEED_VEHICLES          = 0     # seed for vehicle spawn randomizer
 ###############################################################################àà
@@ -89,7 +89,7 @@ DIST_THRESHOLD_TO_LAST_WAYPOINT = 2.0  # some distance from last position before
                                        # simulation ends
 
 # Planning Constants
-NUM_PATHS = 7
+NUM_PATHS = 9#7
 BP_LOOKAHEAD_BASE      = 16.0              # m
 BP_LOOKAHEAD_TIME      = 1.0              # s
 PATH_OFFSET            = 1.5              # m
@@ -100,7 +100,7 @@ PATH_SELECT_WEIGHT     = 10
 A_MAX                  = 2.5              # m/s^2
 SLOW_SPEED             = 2.0              # m/s
 STOP_LINE_BUFFER       = 3.5              # m
-LEAD_VEHICLE_LOOKAHEAD = 20.0             # m
+LEAD_VEHICLE_LOOKAHEAD = 10.0             # m
 LP_FREQUENCY_DIVISOR   = 2                # Frequency divisor to make the 
                                           # local planner operate at a lower
                                           # frequency than the controller
@@ -297,6 +297,22 @@ def make_carla_settings(args):
     camera2r.set_rotation(cam_yaw_right, cam_pitch_right, cam_roll_right)
 
     settings.add_sensor(camera2r)
+
+
+
+    # Lidar Specification
+    lidar = Lidar("Lidar32")
+    lidar.set(
+        Channels=32,
+        Range=50,
+        PointsPerSecond=90000,
+        RotationFrequency=100,
+        UpperFovLimit=10,#30,
+        LowerFovLimit=-30,#-10
+    )
+    lidar.set_position(x=0, y=0, z=1.40)
+    lidar.set_rotation(pitch=10, yaw=0, roll=0)
+    settings.add_sensor(lidar)
 
     return settings
 
@@ -518,15 +534,15 @@ def get_map(scene):
     carla_map = CarlaMap("Town01", 0.1653, 50)
     return carla_map, img
 
-def visualize_point(carla_map, x, y, z, img, color=None, t=-1, r=5, text=False):
+def visualize_point(carla_map, x, y, z, img, color=None, t=-1, r=5, text=None):
     pixel = carla_map.convert_to_pixel([x,y,z])
     xp,yp = pixel[:2]
     if not color:
         color = (0,255,0)
     cv2.circle(img, (int(xp),int(yp)), r, color, thickness=-1)
-    if text:
-        string = "(" + str(x) + ", " +str(y)+")"
-        cv2.putText(img,  string,(int(xp),int(yp)), cv2.FONT_HERSHEY_SIMPLEX,1,color)
+    if text and type(text) is str:
+        
+        cv2.putText(img,text,(int(xp),int(yp)), cv2.FONT_HERSHEY_SIMPLEX,1,color)
 
 def visualize_rect(carla_map, pos, till, img, color=(0,0,225)):
     min_pos = pos[:2]
@@ -690,8 +706,8 @@ def exec_waypoint_nav_demo(args):
 
         waypoints = []
         waypoints_route = mission_planner.compute_route(source, source_ori, destination, destination_ori)
-        desired_speed = 10.0
-        turn_speed    = 1.5
+        desired_speed = 5.0
+        turn_speed    = 2.0
 
         intersection_nodes = mission_planner.get_intersection_nodes()
         
@@ -1090,12 +1106,16 @@ def exec_waypoint_nav_demo(args):
 
                 #visualize_waypoints_on_map(map, waypoints, img_map)
                 #img_map_copy = np.copy(img_map)
-                visualize_map(map, img_map, measurements=measurement_data)
-                visualize_waypoints_on_map(map, waypoints, img_map)
-                visualize_goal(map, img_map, waypoints, bp._goal_index)
+                img_map_copy = img_map.copy()
+                visualize_map(map, img_map_copy, measurements=measurement_data)
+                visualize_waypoints_on_map(map, waypoints, img_map_copy)
+                visualize_goal(map, img_map_copy, waypoints, bp._goal_index)
+                ego_x, ego_y, _, _, _, ego_yaw = get_current_pose(measurement_data)
+                ego_state = [ego_x, ego_y, ego_yaw] #TODO vehicle location
+                print("Vehicle state: ", ego_state)
                 
 
-                res, res_r, cluster, cluster_r = [None]*4
+                res, res_r, kf_pos = [None]*3
 
                 #Visualize traffic light point on world
                 if vehicle_bbox_traffic_light is not None:
@@ -1106,8 +1126,7 @@ def exec_waypoint_nav_demo(args):
                     x,y,v = vehicle_bbox_traffic_light[0]
                     z=38
 
-                    ego_x, ego_y, _, _, _, ego_yaw = get_current_pose(measurement_data)
-                    ego_state = [ego_x, ego_y, ego_yaw] #TODO vehicle location
+
                     
                     #Transformation
                     x_global = ego_state[0] + x*cos(ego_state[2]) - \
@@ -1116,10 +1135,12 @@ def exec_waypoint_nav_demo(args):
                                                     y*cos(ego_state[2])
                     
                     #print("Global coordinates: ", (x_global, y_global))
+                    tl_tracking.track(ego_state, (x,y), tl_detector.is_red())
+                    kf_pos = tl_tracking.get_kf_pos()
+
+
                     nearest_tl = tl_tracking.get_nearest_tl(ego_state)
                     if nearest_tl is not None:
-                    
-                        tl_tracking.track(ego_state, (x,y), tl_detector.is_red())
                         res, cluster_res = nearest_tl
                         traffic_light.update(res[0], res[1], cluster_res)
 
@@ -1163,6 +1184,7 @@ def exec_waypoint_nav_demo(args):
                             visualize_point(map, int(res[0][0]), int(res[0][1]), zr, img_map, color=(238,130,238), r=20)
                     """
                     tl_tracking.track(ego_state, (xr,yr), tl_right_detector.is_red())
+                    
 
                     nearest_tl = tl_tracking.get_nearest_tl(ego_state)
                     if nearest_tl is not None:
@@ -1175,49 +1197,52 @@ def exec_waypoint_nav_demo(args):
 
 
                     if abs(xr) < 60 and abs(yr)<60:
-                        visualize_point(map, x_globalr, y_globalr, zr, img_map, color=(225,225,0), text=True)
+                        visualize_point(map, x_globalr, y_globalr, zr, img_map, color=(225,225,0), text=False)
                     
                         #print("Global coordinates traffic light right: ", (x_globalr, y_globalr))
                         #print("Global pose: ", (ego_x, ego_y))
                 #print("Local coordinates traffic lights right: ", vehicle_bbox_traffic_light_r)
                                     #print("Clusters: ", tl_tracking.get_clusters())
-                if traffic_light.get_pos() is not None:
-                    print("Traffic Light State: pos, col, is next, local distance", traffic_light.get_pos(), traffic_light.get_color(), traffic_light._is_next, from_global_to_local_frame(ego_state, traffic_light.get_pos()))
+
+                #if traffic_light.get_pos() is not None:
+                 #   print("Traffic Light State: pos, col, is next, local distance", traffic_light.get_pos(), traffic_light.get_color(), traffic_light._is_next, from_global_to_local_frame(ego_state, traffic_light.get_pos()))
+
 
                 if vehicle_bbox_traffic_light_r is not None:
                     if res_r is not None:
-                        visualize_point(map, int(res_r[0][0]), int(res_r[0][1]), zr, img_map, color=(238,130,238), r=20)
-                        print("RESULT R: ", res_r)
+                        #visualize_point(map, int(res_r[0][0]), int(res_r[0][1]), zr, img_map, color=(238,130,238), r=20)
                         traffic_light._last_img_cropped = tl_right_detector.get_img_cropped()
                         traffic_light._last_mask_cropped = tl_right_detector._mask
                         bp.set_traffic_light(traffic_light)
-                        print("ADDED {} to BP".format(res_r))
-                        print("Clusters: ", tl_tracking.get_clusters())
                     else: #Se non c'è la detection della camera destra vado con la centrale
                         if vehicle_bbox_traffic_light is not None:
-                            print("Clusters: ", tl_tracking.get_clusters())
+                            #print("Clusters: ", tl_tracking.get_clusters())
                             if res is not None:
-                                print("RESULT: ", res)
+                                #print("RESULT: ", res)
                                 traffic_light._last_img_cropped = tl_detector.get_img_cropped()
                                 traffic_light._last_mask_cropped = tl_detector._mask
                                 bp.set_traffic_light(traffic_light)
                 
                 elif vehicle_bbox_traffic_light is not None:
                     
-                    print("Clusters: ", tl_tracking.get_clusters())
+                    #print("Clusters: ", tl_tracking.get_clusters())
                     if res is not None:
-                        print("RESULT: ", res)
+                       # print("RESULT: ", res)
                         traffic_light._last_img_cropped = tl_detector.get_img_cropped()
                         traffic_light._last_mask_cropped = tl_detector._mask
                         bp.set_traffic_light(traffic_light)
                 
                 else:
-                    print("No traffic Light")
+                    #print("No traffic Light")
                     ego_x, ego_y, _, _, _, ego_yaw = get_current_pose(measurement_data)
                     ego_state = [ego_x, ego_y, ego_yaw] #TODO vehicle location
                     traffic_light.no_traffic_light_detection(ego_state)
                     #bp._traffic_light = traffic_light
 
+                kf_pos = tl_tracking.get_kf_pos()
+                if not kf_pos is None:
+                    print("KF POS: ", kf_pos)
+                    visualize_point(map, int(kf_pos[0]), int(kf_pos[1]), 1, img_map, color=(0,0,0), r=15)
                 
                 ###################################################################################
 
@@ -1234,9 +1259,10 @@ def exec_waypoint_nav_demo(args):
 
                 
                 # Set lookahead based on current speed.
-                print(BP_LOOKAHEAD_BASE + BP_LOOKAHEAD_TIME * open_loop_speed)
+                #print(LEAD_VEHICLE_LOOKAHEAD + BP_LOOKAHEAD_TIME * open_loop_speed)
                 bp.set_lookahead(BP_LOOKAHEAD_BASE + BP_LOOKAHEAD_TIME * open_loop_speed)
-                bp.set_follow_lead_vehicle_lookahead(BP_LOOKAHEAD_BASE + BP_LOOKAHEAD_TIME * open_loop_speed)
+                
+                bp.set_follow_lead_vehicle_lookahead(LEAD_VEHICLE_LOOKAHEAD + BP_LOOKAHEAD_TIME * open_loop_speed)
                 # Perform a state transition in the behavioural planner.
                 bp.transition_state(waypoints, ego_state, current_speed)
 
@@ -1282,6 +1308,7 @@ def exec_waypoint_nav_demo(args):
                     # Compute the velocity profile for the path, and compute the waypoints.
                     desired_speed = bp._goal_state[2]
                     if bp.get_follow_lead_vehicle() :
+                        print("SEGUENDO IL VEICOLO")
                         lead_car_state = [prob_obs["vehicle"]["pos"][closest_vehicle_index][0], prob_obs["vehicle"]["pos"][closest_vehicle_index][1], prob_obs["vehicle"]["speed"][closest_vehicle_index]]
                     else :
                         lead_car_state=None

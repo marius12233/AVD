@@ -1,6 +1,7 @@
 from utils import centeroidnp, from_global_to_local_frame
 import numpy as np
 import cv2
+from color_detection import traffic_color_detection
 
 RED = 1
 GREEN = 0
@@ -33,9 +34,20 @@ class TrafficLight:
     
     def get_cluster_centroid(self):
         return self._cluster_belongs 
+    
+    def _get_tl_by_img(self):
+        image = self._last_img_cropped
+        mask = self._last_mask_cropped
+        res = cv2.bitwise_and(image, image, mask=mask)
+        return res
+
 
     def update(self, pos, color, cluster):
-        #If clusters differs change is next in
+        if self._last_img_cropped is not None:
+            img = self._get_tl_by_img()
+            color_cv = traffic_color_detection(img)
+            color = color_cv 
+            print("COLOR: ", "RED" if color else "GREEN" )
         
         if self._cluster_belongs is None:
             self._cluster_belongs = cluster
@@ -59,6 +71,13 @@ class TrafficLight:
             self._color = color
             self._is_next = True
             self.has_changed = True
+        
+        if self._last_img_cropped is not None and self._last_mask_cropped is not None:
+            if self._color == 1:
+                res = self._get_tl_by_img()
+                #cv2.imwrite("data_collected/tl_"+str(np.random.randint(1000))+".jpg", res)
+                cv2.imshow("TL: ", res)
+                cv2.waitKey(10)
 
             
 
@@ -67,8 +86,10 @@ class TrafficLight:
             return
         local_frame_pos = from_global_to_local_frame(ego_state, self._pos)
         #Se è stato chiamato questo metodo e il local frame pos del traffic light sta dietro di me, allora questo semaforo non è più quello prossimo
-        if local_frame_pos[0]<3.5: #Se il traffic light sta dietro il veicolo
+        if local_frame_pos[0]<1: #Se il traffic light sta dietro il veicolo
             self._is_next=False
+        
+        
 
         #Se è stata chiamata questo metodo ma il traffic light non sta dietro di me e il veicolo sta fermo, 
         #Alg:
@@ -77,11 +98,16 @@ class TrafficLight:
         #FARLO SOLO SE SEI IL NEXT 
         #TODO: if self._is_next:
         """
-        if self._last_img_cropped is not None:
-            cv2.imwrite("tl_"+str(np.random.randint(1000))+".jpg", self._last_img_cropped)
-            cv2.imshow("TL: ", self._last_img_cropped)
-            cv2.waitKey(10)
+        if self._last_img_cropped is not None and self._last_mask_cropped is not None:
+            if self._color == 1:
+                image = self._last_img_cropped
+                mask = self._last_mask_cropped
+                res = cv2.bitwise_and(image, image, mask=mask)
+                #cv2.imwrite("tl_"+str(np.random.randint(1000))+".jpg", res)
+                cv2.imshow("TL: ", res)
+                cv2.waitKey(10)
         """
+        
 
 
         
