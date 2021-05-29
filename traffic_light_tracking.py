@@ -102,8 +102,8 @@ class TrafficLightTracking:
         self._measurements.append((x_global, y_global))
         if len(self._measurements)>self.min_measurements:
             meas = np.asarray(self._measurements)
-            print("meas:", meas)
-            print("Size: ", meas)
+            #print("meas:", meas)
+            #print("Size: ", meas)
             self._kf_pos = apply_kalman_filter(meas)
 
 
