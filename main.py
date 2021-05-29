@@ -43,8 +43,8 @@ from traffic_light import TrafficLight
 ###############################################################################
 # CONFIGURABLE PARAMENTERS DURING EXAM
 ###############################################################################
-PLAYER_START_INDEX = 6#6#135#135#141#66 150         #  spawn index for player
-DESTINATION_INDEX = 15#15#53#53#90#18        # Setting a Destination HERE
+PLAYER_START_INDEX = 5#6#135#135#141#66 150         #  spawn index for player
+DESTINATION_INDEX = 22#15#53#53#90#18        # Setting a Destination HERE
 NUM_PEDESTRIANS        = 30      # total number of pedestrians to spawn
 NUM_VEHICLES           = 30      # total number of vehicles to spawn
 SEED_PEDESTRIANS       = 0      # seed for pedestrian spawn randomizer
@@ -757,7 +757,17 @@ def exec_waypoint_nav_demo(args):
                     
                     middle_point = [(start_intersection[0] + end_intersection[0]) /2,  (start_intersection[1] + end_intersection[1]) /2]
 
-                    centering = 0.75
+                    turn_angle = math.atan2((end_intersection[1] - start_intersection[1]),(start_intersection[0] - end_intersection[0]))
+                    print(turn_angle,  pi / 4, middle_point[0] - center_intersection[0] < 0)
+
+                    turn_adjust = 0 < turn_angle < pi / 2 and middle_point[0] - center_intersection[0] < 0
+                    turn_adjust_2 =  pi / 2 < turn_angle < pi and middle_point[0] - center_intersection[0] < 0
+
+                    quater_part = - pi / 2 < turn_angle < 0 
+                    neg_turn_adjust = quater_part and middle_point[0] - center_intersection[0] < 0
+                    neg_turn_adjust_2 = - pi < turn_angle < -pi/2 and middle_point[0] - center_intersection[0] < 0
+                    
+                    centering = 0.55 if turn_adjust or neg_turn_adjust else 0.75 
 
                     middle_intersection = [(centering*middle_point[0] + (1-centering)*center_intersection[0]),  (centering*middle_point[1] + (1-centering)*center_intersection[1])]
 
@@ -774,19 +784,23 @@ def exec_waypoint_nav_demo(args):
 
                     x = start_intersection[0]
                     
-                    center_x = -coeffs[0]/2
-                    center_y = -coeffs[1]/2
+                    internal_turn = 0 if turn_adjust or turn_adjust_2 or quater_part  else 1
+                    
+                    center_x = -coeffs[0]/2 + internal_turn * 0.10
+                    center_y = -coeffs[1]/2 + internal_turn * 0.10
 
                     r = sqrt(center_x**2 + center_y**2 - coeffs[2])
 
                     theta_start = math.atan2((start_intersection[1] - center_y),(start_intersection[0] - center_x))
                     theta_end = math.atan2((end_intersection[1] - center_y),(end_intersection[0] - center_x))
 
-                    theta = theta_start
-
                     start_to_end = 1 if theta_start < theta_end else -1
 
-                    while (start_to_end==1 and theta < theta_end) or (start_to_end==-1 and theta > theta_end):
+                    theta_step = (abs(theta_end - theta_start) * start_to_end) /20
+
+                    theta = theta_start + 6*theta_step
+
+                    while (start_to_end==1 and theta < theta_end - 3*theta_step) or (start_to_end==-1 and theta > theta_end - 6*theta_step):
                         waypoint_on_lane = [0,0,0]
 
                         waypoint_on_lane[0] = center_x + r * cos(theta)
@@ -794,7 +808,7 @@ def exec_waypoint_nav_demo(args):
                         waypoint_on_lane[2] = turn_speed
 
                         waypoints.append(waypoint_on_lane)
-                        theta += (abs(theta_end - theta_start) * start_to_end) / 10
+                        theta += theta_step
                     
                     turn_cooldown = 4
             else:
@@ -1306,6 +1320,7 @@ def exec_waypoint_nav_demo(args):
                 best_index = lp._collision_checker.select_best_path_index(paths, collision_check_array, bp._goal_state)
                 # If no path was feasible, continue to follow the previous best path.
                 if best_index == None:
+    
                     best_path = lp._prev_best_path
                 else:
                     best_path = paths[best_index]
