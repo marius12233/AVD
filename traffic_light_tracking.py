@@ -29,7 +29,8 @@ def apply_kalman_filter(measurements, show=False):
 
     kf1 = kf.em(measurements, n_iter=5)
     (smoothed_state_means, smoothed_state_covariances) = kf1.smooth(measurements)
-    return (smoothed_state_means[-1][0], smoothed_state_means[-1][2])
+    return (smoothed_state_means[-1][0], smoothed_state_means[-1][2]) 
+
 
 class TrafficLightTracking:
 
@@ -37,10 +38,11 @@ class TrafficLightTracking:
         self.groups = {}
         self.color_groups = {}
         self.directions = {}
-        self.max_meters = 10
+        self.max_meters = 15
         self._max_distance_to_vehicle = 60
-        self.min_measurements = 5
+        self.min_measurements = 4
         self._intersection_nodes = intersection_nodes
+        
 
         ## KALMAN FILTER meas
         self._measurements = []
@@ -62,7 +64,8 @@ class TrafficLightTracking:
                 if distance<dist: #Lo prendo a minima distanza da me
                     dist = distance
                     next_intersection = point
-
+        if next_intersection is not None:
+            print("Next Intersection Found: ", next_intersection)
         return next_intersection
 
 
@@ -88,8 +91,10 @@ class TrafficLightTracking:
         return next_intersection
 
     def get_kf_pos(self):
-        return self._kf_pos        
+        return self._kf_pos
 
+    def get_meas_prob(self):
+        return self._pos_prob
 
     def track(self,ego_state, vehicle_frame_pos, color):
         x_global, y_global = from_local_to_global_frame(ego_state, vehicle_frame_pos)       
@@ -98,6 +103,8 @@ class TrafficLightTracking:
 
     def update(self, ego_state, pos_global, color):
         x_global, y_global = pos_global
+
+        """
         ### USE KALMAN FILTER
         self._measurements.append((x_global, y_global))
         if len(self._measurements)>self.min_measurements:
@@ -105,6 +112,8 @@ class TrafficLightTracking:
             #print("meas:", meas)
             #print("Size: ", meas)
             self._kf_pos = apply_kalman_filter(meas)
+        """
+
 
 
         #Filter points
@@ -139,9 +148,8 @@ class TrafficLightTracking:
         pos_local = from_global_to_local_frame(ego_state, pos_global)
         #Se la misurazione che sto effettuando sta più avanti dell'incrocio più vicino, skippala
         if pos_local[0] > nearest_intersectioin_local[0]:
+            print("Measure before")
             return
-        
-
 
         d=np.inf
         min_dist_elem = None
@@ -187,8 +195,6 @@ class TrafficLightTracking:
 
     def get_nearest_tl(self, ego_state):
         #compute distance between each center of cluster
-        nearest_intersection = self.find_nearest_intersection(ego_state)#Take the nearest intersection to the cluster
-        nearest_intersection = (nearest_intersection[0], nearest_intersection[1])
         
         d=np.inf
         min_dist_elem = None
@@ -196,20 +202,9 @@ class TrafficLightTracking:
             dist = distance.euclidean(np.array(k), np.array(ego_state[:2]))
             x_l, y_l = from_global_to_local_frame(ego_state, k)
             #add condition that it has to be forward
-            
-            #################à FILTER IF THE INTERSECTION IS ASSOCIATED TO THE CLUSTER ######à
-            #Devo considerare che se ho un elemento a distanza minima che va bene come cluster posso cambiare l'associazione con l'incrocio
-            #IDEA:
-            # #Oltre al cluster, nell'intersezione metto anche la distanza, relativa al veicolo
-            # del cluster rispetto all'intersezione 
-            # In questo if devo controllare che la distanza relativa al veicolo dal punto di int. non sia <0)
-            #if self._track_intersection_tl[nearest_intersection] is not None and not self._track_intersection_tl[nearest_intersection]==k: #Se ho associato l'intersezione già a un cluster e quel cluster non è quello che sto considerando, vai avanti
-            #   continue
-            #############################################################
-
 
             #print("my_distance: ", dist)
-            if dist<d and len(self.groups[k])>self.min_measurements and x_l > 0 and y_l>0:
+            if dist<d and len(self.groups[k])>=self.min_measurements and x_l > 0 and y_l>0:
                 d = dist
                 min_dist_elem = k
         
@@ -220,10 +215,6 @@ class TrafficLightTracking:
         points = self.groups[min_dist_elem]
         colors = self.color_groups[min_dist_elem]
 
-
-         
-        
-        
         #del(self.groups[min_dist_elem])
         #del(self.color_groups[min_dist_elem])
 

@@ -13,7 +13,7 @@ def load_model():
 class TrafficLightDetector:
 
 
-    def __init__(self, model, th_score=0.24):
+    def __init__(self, model, th_score=0.2):
         self.__model = model
         self.__bbox=None
         self.__class = None

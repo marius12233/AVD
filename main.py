@@ -43,8 +43,8 @@ from traffic_light import TrafficLight
 ###############################################################################
 # CONFIGURABLE PARAMENTERS DURING EXAM
 ###############################################################################
-PLAYER_START_INDEX = 22#6#135#135#141#66 150         #  spawn index for player
-DESTINATION_INDEX = 55#15#53#53#90#18        # Setting a Destination HERE
+PLAYER_START_INDEX = 8#124#133#13#6#22#6#135#135#141#66 150         #  spawn index for player
+DESTINATION_INDEX = 15#55#65#15#55#15#53#53#90#18        # Setting a Destination HERE
 NUM_PEDESTRIANS        = 30      # total number of pedestrians to spawn
 NUM_VEHICLES           = 30      # total number of vehicles to spawn
 SEED_PEDESTRIANS       = 0      # seed for pedestrian spawn randomizer
@@ -955,7 +955,6 @@ def exec_waypoint_nav_demo(args):
 
 
         tl_tracking = TrafficLightTracking(intersection_nodes=intersection_nodes_world)
-        traffic_light_fences = []
         #############################################
         # Scenario Execution Loop
         #############################################
@@ -1103,15 +1102,15 @@ def exec_waypoint_nav_demo(args):
                     vehicle_bbox_traffic_light = tl_detector.detect(bgr_img, depth_data, seg_img=labels_to_array(segmentation_data))
                     camera_data = tl_detector.draw_enlarged_boxes_on_image(camera_data)
 
-                    #cv2.imshow("CameraRGB", camera_data)
-                    #cv2.waitKey(10)
+                    cv2.imshow("CameraRGB", camera_data)
+                    cv2.waitKey(10)
 
                 #visualize_waypoints_on_map(map, waypoints, img_map)
                 #img_map_copy = np.copy(img_map)
-                img_map_copy = img_map.copy()
-                visualize_map(map, img_map_copy, measurements=measurement_data)
-                visualize_waypoints_on_map(map, waypoints, img_map_copy)
-                visualize_goal(map, img_map_copy, waypoints, bp._goal_index)
+                #img_map_copy = img_map.copy()
+                visualize_map(map, img_map, measurements=measurement_data)
+                visualize_waypoints_on_map(map, waypoints, img_map)
+                visualize_goal(map, img_map, waypoints, bp._goal_index)
                 ego_x, ego_y, _, _, _, ego_yaw = get_current_pose(measurement_data)
                 ego_state = [ego_x, ego_y, ego_yaw] #TODO vehicle location
                 #print("Vehicle state: ", ego_state)
@@ -1128,8 +1127,6 @@ def exec_waypoint_nav_demo(args):
                     x,y,v = vehicle_bbox_traffic_light[0]
                     z=38
 
-
-                    
                     #Transformation
                     x_global = ego_state[0] + x*cos(ego_state[2]) - \
                                                     y*sin(ego_state[2])
@@ -1150,7 +1147,7 @@ def exec_waypoint_nav_demo(args):
                     int_point = tl_tracking.find_next_intersection(ego_state)
                     if int_point is not None:
                         visualize_point(map, int_point[0], int_point[1], 10, img_map, color=(0,0,225))
-                        #visualize_rect(map, (int_point[0]-20, int_point[1]-20, int_point[0]+20, int_point[1]+20), 3, img_map, color=(0,0,225))
+                        visualize_rect(map, (int_point[0]-20, int_point[1]-20, int_point[0]+20, int_point[1]+20), 3, img_map, color=(0,0,225))
 
 
 
@@ -1166,9 +1163,6 @@ def exec_waypoint_nav_demo(args):
                     #xmax,ymax,v = point_max
                     xr,yr,vr = vehicle_bbox_traffic_light_r[0]
                     zr=38
-
-                    ego_x, ego_y, _, _, _, ego_yaw = get_current_pose(measurement_data)
-                    ego_state = [ego_x, ego_y, ego_yaw] #TODO vehicle location
                     
                     #Transformation
                     x_globalr = ego_state[0] + xr*cos(ego_state[2]) - \
@@ -1212,7 +1206,7 @@ def exec_waypoint_nav_demo(args):
 
                 if vehicle_bbox_traffic_light_r is not None:
                     if res_r is not None:
-                        #visualize_point(map, int(res_r[0][0]), int(res_r[0][1]), zr, img_map, color=(238,130,238), r=20)
+                        visualize_point(map, int(res_r[0][0]), int(res_r[0][1]), zr, img_map, color=(238,130,238), r=10)
                         traffic_light._last_img_cropped = tl_right_detector.get_img_cropped()
                         traffic_light._last_mask_cropped = tl_right_detector._mask
                         bp.set_traffic_light(traffic_light)
@@ -1243,9 +1237,10 @@ def exec_waypoint_nav_demo(args):
 
                 kf_pos = tl_tracking.get_kf_pos()
                 if not kf_pos is None:
-                    pass
-                    #print("KF POS: ", kf_pos)
-                    #visualize_point(map, int(kf_pos[0]), int(kf_pos[1]), 1, img_map, color=(0,0,0), r=15)
+                    #pass
+                    print("KF POS: ", kf_pos)
+                    
+                    visualize_point(map, int(kf_pos[0]), int(kf_pos[1]), 1, img_map, color=(0,0,0), r=5)
                 
                 ###################################################################################
 
@@ -1262,7 +1257,8 @@ def exec_waypoint_nav_demo(args):
                 closest_vehicle_index=bp.check_for_closest_vehicle(ego_state,(ego_orientation.x, ego_orientation.y),prob_obs["vehicle"]["pos"],prob_obs["vehicle"]["yaw"],prob_obs["vehicle"]["x_rot"], prob_obs["vehicle"]["y_rot"])
                 
 
-                
+                #Setting bp variables
+                bp.set_next_intersection(tl_tracking.find_next_intersection(ego_state))
                 # Set lookahead based on current speed.
                 #print(LEAD_VEHICLE_LOOKAHEAD + BP_LOOKAHEAD_TIME * open_loop_speed)
                 bp.set_lookahead(BP_LOOKAHEAD_BASE + BP_LOOKAHEAD_TIME * open_loop_speed)

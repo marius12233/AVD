@@ -37,7 +37,7 @@ def detect(image, color="red"):
 
 
 
-def traffic_color_detection(image, threshold=200):
+def traffic_color_detection(image, threshold=50):
     green_area = detect(image, color="green")
     yellow_area = detect(image, color="yellow")
     red_area = detect(image, color="red")
@@ -45,6 +45,7 @@ def traffic_color_detection(image, threshold=200):
     print("areas: ", areas)
     max_area = np.max(areas)
     if max_area<threshold:
+        print("Not passed threshold: ", max_area)
         return None
 
     if red_area > green_area or yellow_area > green_area:

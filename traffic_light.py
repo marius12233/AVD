@@ -73,11 +73,18 @@ class TrafficLight:
             self.has_changed = True
         
         if self._last_img_cropped is not None and self._last_mask_cropped is not None:
-            if self._color == 1:
-                res = self._get_tl_by_img()
-                #cv2.imwrite("data_collected/tl_"+str(np.random.randint(1000))+".jpg", res)
-                cv2.imshow("TL: ", res)
-                cv2.waitKey(10)
+            #if self._color == 1:
+            res = self._get_tl_by_img()
+            color_cv = traffic_color_detection(img)
+            color_name = "void"
+            if self._color==1: 
+                color_name = "red"  
+            elif self._color==0:
+                color_name = "green"
+                
+            #cv2.imwrite("data_"+color_name+"/tl_"+str(self.i)+".jpg", res)
+            cv2.imshow("TL: ", res)
+            cv2.waitKey(10)
 
             
 
@@ -88,6 +95,10 @@ class TrafficLight:
         #Se è stato chiamato questo metodo e il local frame pos del traffic light sta dietro di me, allora questo semaforo non è più quello prossimo
         if local_frame_pos[0]<0: #Se il traffic light sta dietro il veicolo
             self._is_next=False
+            
+        
+        elif local_frame_pos[0]<0:
+            pass
         
         
 
@@ -96,7 +107,7 @@ class TrafficLight:
         #Prendo l'immagine, applico la maschera per prendermi solo il semaforo
         #Converto i colori in hsv per classificare meglio
         #FARLO SOLO SE SEI IL NEXT 
-        #TODO: if self._is_next:
+        #TODO: if self._is_next: 720,797
         """
         if self._last_img_cropped is not None and self._last_mask_cropped is not None:
             if self._color == 1:
