@@ -16,6 +16,8 @@ STOP_THRESHOLD = 0.03
 STOP_COUNTS = 10
 MAX_DIST_TO_STOP = 12
 MIN_DIST_TO_STOP = 3
+METER_TO_DECELERATE = 20
+
 class BehaviouralPlanner:
     def __init__(self, lookahead, lead_vehicle_lookahead):
         self._lookahead                     = lookahead
@@ -37,6 +39,13 @@ class BehaviouralPlanner:
 
     def set_follow_lead_vehicle_lookahead(self, follow_lead_vehicle_lookahead):
         self._follow_lead_vehicle_lookahead = follow_lead_vehicle_lookahead
+
+    def set_traffic_light(self, traffic_light:TrafficLight):
+        if self._traffic_light is None:
+            self._traffic_light = traffic_light
+    
+    def set_next_intersection(self, next_intersection):
+        self._next_intersection = next_intersection
         
     def get_follow_lead_vehicle(self):
         return self._follow_lead_vehicle 
@@ -189,7 +198,7 @@ class BehaviouralPlanner:
             #Se sto a 20 m dall'incrocio torno in FOLLOW LANE
             next_intersection = self._next_intersection
             next_intersection_local = from_global_to_local_frame(ego_state, next_intersection[:2])
-            if next_intersection_local[0] <= 20: #Se stiamo almeno a 20 m dal prossimo incrocio
+            if next_intersection_local[0] <= METER_TO_DECELERATE: #Se stiamo almeno a 20 m dal prossimo incrocio
                 self._state = FOLLOW_LANE
             else:
                  # Check stop signs
@@ -214,33 +223,43 @@ class BehaviouralPlanner:
             raise ValueError('Invalid state value.')
 
 
-    def set_traffic_light(self, traffic_light:TrafficLight):
-        if self._traffic_light is None:
-            self._traffic_light = traffic_light
-    
-    def set_next_intersection(self, next_intersection):
-        self._next_intersection = next_intersection
-
-
     def check_for_next_intersection(self, waypoints, closest_index, goal_index, ego_state):
+        """[summary]
+        Se so che ho un'intersezione davanti vorrei arrivare all'intersezione con una velocità più bassa.
+        Per fare ciò prendo tra i waypoints nel lookahead il waypoint più lontano dall'intersezione che ha una distanza 
+        almeno di 25 mt da essa
+
+        Args:
+            waypoints ([type]): [description]
+            closest_index ([type]): [description]
+            goal_index ([type]): [description]
+            ego_state ([type]): [description]
+
+        Returns:
+            [type]: [description]
+        """
         if self._next_intersection is None:
             return goal_index, False
         
         next_intersection_local = from_global_to_local_frame(ego_state, self._next_intersection[:2])
         #Prendere il waypoint con distanza minore o uguale della prossima intersezione -20
-        dist = np.Inf
+        #Controllare se il veicolo sta più lontano di 20m
+        if next_intersection_local[0] < METER_TO_DECELERATE:
+            return goal_index, False
+
+        dist = -np.Inf
         wp_idx_min = None
         for i in range(closest_index, goal_index):
             wp = waypoints[i]
             wp_local = from_global_to_local_frame(ego_state, wp[:2])
             d = next_intersection_local[0] - wp_local[0]
 
-            if d < 20:
+            if d > METER_TO_DECELERATE:
                 continue
 
-            dist_v = 20 + self._lookahead
+            #dist_v = 20 + self._lookahead #distanza a cui deve stare il veicolo per cui inizio a prendermi i punti
 
-            if d < dist and d < dist_v:
+            if d > dist:
                 d = dist
                 wp_idx_min = i
         
@@ -323,7 +342,6 @@ class BehaviouralPlanner:
                 wp_local = from_global_to_local_frame(ego_state, wp)
                 s_local = from_global_to_local_frame(ego_state, s)
 
-                dist_wp_s = np.linalg.norm(wp-s)
                 dist_wp_local = s_local[0] - wp_local[0]
                 #print("d[{}]: {}".format(i, dist_wp_s))
 
@@ -337,20 +355,20 @@ class BehaviouralPlanner:
                     min_dist = dist_wp_local
                     min_idx = i
 
-            dist_v = MAX_DIST_TO_STOP + self._lookahead - (MAX_DIST_TO_STOP - MIN_DIST_TO_STOP)
+            dist_v = self._lookahead #Distanza per vedere tutti i waypoints tra 3m e 12m dal semaforo
 
+            if min_dist > MAX_DIST_TO_STOP+MIN_DIST_TO_STOP:
 
-            if min_dist > MAX_DIST_TO_STOP:
-                if s_local[0] > dist_v:
-                #print("min dist > max dist to stop")
+                
+                if s_local[0] > dist_v: #Non sono arrivato col veicolo a guardare i waypoints nel range specificato
                     return goal_index, False
             
                 else:
-
                     waypoints_adder(waypoints, min_idx, min_idx+1, sampling_rate=1)
                     goal_index = min_idx+1
                     self._traffic_light.has_changed = False
                     return goal_index, True
+                
                 
 
             # If there is an intersection with a stop line, update
@@ -478,11 +496,12 @@ class BehaviouralPlanner:
             lead_car_delta_vector = [lead_car_position[0] - ego_state[0], 
                                      lead_car_position[1] - ego_state[1]]
             lead_car_distance = np.linalg.norm(lead_car_delta_vector)
-            #print("Distance: ",lead_car_distance)
-            print("-----Lead Vehicle Distance:  ", lead_car_distance,"-------",self._follow_lead_vehicle)
+            
+            
             if lead_car_distance > self._follow_lead_vehicle_lookahead + 5:
                 self._follow_lead_vehicle = False
                 return
+            
             # Add a 15m buffer to prevent oscillations for the distance check.
             if lead_car_distance < self._follow_lead_vehicle_lookahead + 6:
                 return
@@ -509,17 +528,11 @@ class BehaviouralPlanner:
         prob_coll_vehicle=[]
         for i in range(len( vehicle_position )):
             obs_local_pos=from_global_to_local_frame(ego_state,vehicle_position[i])
-            if obs_local_pos[0]>0 and obs_local_pos[0] < 20 and obs_local_pos[1]<5 and obs_local_pos[1]>5:
-                lead_car_delta_vector = [vehicle_position[i][0] - ego_state[0], 
-                                     vehicle_position[i][1] - ego_state[1]]
-                lead_car_distance = np.linalg.norm(lead_car_delta_vector)
-                print("-------Collision car --------")
-                print("Distance",lead_car_distance)
-                
+            if obs_local_pos[0]>0 and obs_local_pos[0] < 20 and obs_local_pos[1]<5 and obs_local_pos[1]>-5:
                 prob_coll_vehicle.append(vehicle_bb[i])
         return prob_coll_vehicle
     
-    def check_for_closest_vehicle(self,ego_state, ego_orientation, vehicle_position,vehicle_yaw, vehicle_rot_x, vehicle_rot_y):
+    def check_forward_closest_vehicle(self, ego_state, ego_orientation, vehicle_position, vehicle_rot):
         
         lead_car_idx=None
         lead_car_local_pos=None
@@ -530,23 +543,19 @@ class BehaviouralPlanner:
             ego_angle+=2*math.pi
         
 
-        angle = None
+        
         for i in range(len(vehicle_position)):
-            local_pos=from_global_to_local_frame(ego_state,vehicle_position[i])
-            vehicle_angle = math.atan2(vehicle_rot_y[i],vehicle_rot_x[i])
+            vehicle_angle = math.atan2(vehicle_rot[i][1],vehicle_rot[i][0])
             if vehicle_angle < 0:
                 vehicle_angle+=2*math.pi
-                
-            if local_pos[0] >= 0 and (vehicle_angle < ego_angle + math.pi/4 and  vehicle_angle > ego_angle - math.pi/4):  #and not  (np.sign(ego_rot_x*vehicle_rot_x[i]) <0 and np.sign(ego_rot_y*vehicle_rot_y[i]) < 0):
-                if (lead_car_idx is None or local_pos[0]<lead_car_local_pos[0]) and local_pos[1]>-5 and local_pos[1]<5:
-                    lead_car_idx=i
-                    lead_car_local_pos=local_pos
-                    angle = vehicle_angle
-
-        #if lead_car_idx:
-        #    print("ATAN Other: ", angle)
-        
-            #print("Other orientation: ", vehicle_rot_x[lead_car_idx], vehicle_rot_y[lead_car_idx] )
+            local_pos=from_global_to_local_frame(ego_state,vehicle_position[i])
+            
+              
+            if local_pos[0] >= 0: 
+                if (vehicle_angle < ego_angle + math.pi/4 and  vehicle_angle > ego_angle - math.pi/4):  
+                    if (lead_car_idx is None or local_pos[0]<lead_car_local_pos[0]) and local_pos[1]>-5 and local_pos[1]<5 :
+                        lead_car_idx=i
+                        lead_car_local_pos=local_pos
             
         return lead_car_idx
 

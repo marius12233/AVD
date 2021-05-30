@@ -89,7 +89,7 @@ DIST_THRESHOLD_TO_LAST_WAYPOINT = 2.0  # some distance from last position before
                                        # simulation ends
 
 # Planning Constants
-NUM_PATHS = 9#7
+NUM_PATHS = 7
 BP_LOOKAHEAD_BASE      = 16.0              # m
 BP_LOOKAHEAD_TIME      = 1.0              # s
 PATH_OFFSET            = 1.5              # m
@@ -757,7 +757,17 @@ def exec_waypoint_nav_demo(args):
                     
                     middle_point = [(start_intersection[0] + end_intersection[0]) /2,  (start_intersection[1] + end_intersection[1]) /2]
 
-                    centering = 0.75
+                    turn_angle = math.atan2((end_intersection[1] - start_intersection[1]),(start_intersection[0] - end_intersection[0]))
+                    print(turn_angle,  pi / 4, middle_point[0] - center_intersection[0] < 0)
+
+                    turn_adjust = 0 < turn_angle < pi / 2 and middle_point[0] - center_intersection[0] < 0
+                    turn_adjust_2 =  pi / 2 < turn_angle < pi and middle_point[0] - center_intersection[0] < 0
+
+                    quater_part = - pi / 2 < turn_angle < 0 
+                    neg_turn_adjust = quater_part and middle_point[0] - center_intersection[0] < 0
+                    neg_turn_adjust_2 = - pi < turn_angle < -pi/2 and middle_point[0] - center_intersection[0] < 0
+                    
+                    centering = 0.55 if turn_adjust or neg_turn_adjust else 0.75 
 
                     middle_intersection = [(centering*middle_point[0] + (1-centering)*center_intersection[0]),  (centering*middle_point[1] + (1-centering)*center_intersection[1])]
 
@@ -774,19 +784,23 @@ def exec_waypoint_nav_demo(args):
 
                     x = start_intersection[0]
                     
-                    center_x = -coeffs[0]/2
-                    center_y = -coeffs[1]/2
+                    internal_turn = 0 if turn_adjust or turn_adjust_2 or quater_part  else 1
+                    
+                    center_x = -coeffs[0]/2 + internal_turn * 0.10
+                    center_y = -coeffs[1]/2 + internal_turn * 0.10
 
                     r = sqrt(center_x**2 + center_y**2 - coeffs[2])
 
                     theta_start = math.atan2((start_intersection[1] - center_y),(start_intersection[0] - center_x))
                     theta_end = math.atan2((end_intersection[1] - center_y),(end_intersection[0] - center_x))
 
-                    theta = theta_start
-
                     start_to_end = 1 if theta_start < theta_end else -1
 
-                    while (start_to_end==1 and theta < theta_end) or (start_to_end==-1 and theta > theta_end):
+                    theta_step = (abs(theta_end - theta_start) * start_to_end) /20
+
+                    theta = theta_start + 6*theta_step
+
+                    while (start_to_end==1 and theta < theta_end - 3*theta_step) or (start_to_end==-1 and theta > theta_end - 6*theta_step):
                         waypoint_on_lane = [0,0,0]
 
                         waypoint_on_lane[0] = center_x + r * cos(theta)
@@ -794,7 +808,7 @@ def exec_waypoint_nav_demo(args):
                         waypoint_on_lane[2] = turn_speed
 
                         waypoints.append(waypoint_on_lane)
-                        theta += (abs(theta_end - theta_start) * start_to_end) / 10
+                        theta += theta_step
                     
                     turn_cooldown = 4
             else:
@@ -1025,7 +1039,7 @@ def exec_waypoint_nav_demo(args):
 
             # Obtain Lead Vehicle information.
             prob_obs ={}
-            prob_obs["vehicle"]={"pos":[],"speed":[],"bounding_box":[],"yaw":[], "x_rot":[], "y_rot":[]}
+            prob_obs["vehicle"]={"pos":[],"speed":[],"bounding_box":[], "rot":[]}
             prob_obs["pedestrian"]={"pos":[],"bounding_box":[]}
             
             for agent in measurement_data.non_player_agents:
@@ -1035,9 +1049,9 @@ def exec_waypoint_nav_demo(args):
                              agent.vehicle.transform.location.y])
                     prob_obs["vehicle"]["speed"].append(agent.vehicle.forward_speed)
                     prob_obs["vehicle"]["bounding_box"].append(obstacle_to_world(agent.vehicle.transform.location,agent.vehicle.bounding_box.extent,agent.vehicle.transform.rotation))
-                    prob_obs["vehicle"]["yaw"].append(agent.vehicle.transform.rotation.yaw)
-                    prob_obs["vehicle"]["x_rot"].append(agent.vehicle.transform.orientation.x)
-                    prob_obs["vehicle"]["y_rot"].append(agent.vehicle.transform.orientation.y)
+                    
+                    prob_obs["vehicle"]["rot"].append([agent.vehicle.transform.orientation.x,agent.vehicle.transform.orientation.y])
+                    
                     
             
                 
@@ -1254,7 +1268,7 @@ def exec_waypoint_nav_demo(args):
 
                 ego_orientation = measurement_data.player_measurements.transform.orientation 
                 
-                closest_vehicle_index=bp.check_for_closest_vehicle(ego_state,(ego_orientation.x, ego_orientation.y),prob_obs["vehicle"]["pos"],prob_obs["vehicle"]["yaw"],prob_obs["vehicle"]["x_rot"], prob_obs["vehicle"]["y_rot"])
+                closest_vehicle_index=bp.check_forward_closest_vehicle(ego_state,(ego_orientation.x, ego_orientation.y),prob_obs["vehicle"]["pos"], prob_obs["vehicle"]["rot"])
                 
 
                 #Setting bp variables
@@ -1276,8 +1290,10 @@ def exec_waypoint_nav_demo(args):
 
                     
                 if  bp.get_follow_lead_vehicle():
+                    print("----Follow Lead----")
                     prob_obs["vehicle"]["bounding_box"].pop(closest_vehicle_index)        
                     prob_obs["vehicle"]["pos"].pop(closest_vehicle_index)
+                    prob_obs["vehicle"]["rot"].pop(closest_vehicle_index)
                 # Compute the goal state set from the behavioural planner's computed goal state.
                 goal_state_set = lp.get_goal_state_set(bp._goal_index, bp._goal_state, waypoints, ego_state)
 
@@ -1300,6 +1316,7 @@ def exec_waypoint_nav_demo(args):
                 best_index = lp._collision_checker.select_best_path_index(paths, collision_check_array, bp._goal_state)
                 # If no path was feasible, continue to follow the previous best path.
                 if best_index == None:
+    
                     best_path = lp._prev_best_path
                 else:
                     best_path = paths[best_index]
