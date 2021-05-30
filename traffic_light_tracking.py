@@ -165,7 +165,7 @@ class TrafficLightTracking:
             #if x_l > 0 and y_l > 0:
             #    print("Is at Right")
 
-            if x_l < 0:
+            if x_l < 0 or abs(y_l) > 5: #se sto nel range di 5 metri
                 #print("REMOVE K: ", k)
                 clusters_to_delete.append(k)
                 continue

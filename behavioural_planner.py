@@ -3,7 +3,7 @@ from traffic_light import GREEN, TrafficLight
 from utils import from_global_to_local_frame
 import numpy as np
 import math
-from utils import from_global_to_local_frame, waypoints_adder
+from utils import from_global_to_local_frame, waypoints_adder, waypoints_adder_v2, waypoints_adder_in_prova
 
 # State machine states
 FOLLOW_LANE = 0
@@ -14,7 +14,7 @@ DECELERATE_TO_INTERSECTION = 3
 STOP_THRESHOLD = 0.03
 # Number of cycles before moving from stop sign.
 STOP_COUNTS = 10
-MAX_DIST_TO_STOP = 12
+MAX_DIST_TO_STOP = 7
 MIN_DIST_TO_STOP = 3
 METER_TO_DECELERATE = 20
 
@@ -331,17 +331,14 @@ class BehaviouralPlanner:
         #else:
         if self._traffic_light.has_changed:
 
-            
+            s = np.array(self._traffic_light.get_pos()[0:2])
+            s_local = from_global_to_local_frame(ego_state, s)
 
             for i in range(closest_index, goal_index):
                 # Check to see if path segment crosses any of the stop lines.
 
                 wp  = np.array(waypoints[i][0:2])
-                s   = np.array(self._traffic_light.get_pos()[0:2])
-
                 wp_local = from_global_to_local_frame(ego_state, wp)
-                s_local = from_global_to_local_frame(ego_state, s)
-
                 dist_wp_local = s_local[0] - wp_local[0]
                 #print("d[{}]: {}".format(i, dist_wp_s))
 
@@ -355,18 +352,22 @@ class BehaviouralPlanner:
                     min_dist = dist_wp_local
                     min_idx = i
 
-            dist_v = self._lookahead #Distanza per vedere tutti i waypoints tra 3m e 12m dal semaforo
+            dist_v = self._lookahead  #Distanza per vedere tutti i waypoints tra 3m e 12m dal semaforo
 
-            if min_dist > MAX_DIST_TO_STOP+MIN_DIST_TO_STOP:
+            if min_dist > MAX_DIST_TO_STOP:
 
-                
                 if s_local[0] > dist_v: #Non sono arrivato col veicolo a guardare i waypoints nel range specificato
                     return goal_index, False
             
                 else:
-                    waypoints_adder(waypoints, min_idx, min_idx+1, sampling_rate=1)
-                    goal_index = min_idx+1
-                    self._traffic_light.has_changed = False
+                    if min_idx is None:#Non ci sono waypoints disponibili nel range e il prossimo waypoint da raggiungere sta nell'intorno di 3 metri dal semaforo, quindi aggiungiamo un waypoint dietro di lui
+                        min_idx = closest_index
+                        distance_to_insert_waypoint = s_local[0]/2
+                        waypoints_adder_v2(waypoints, min_idx, distance_to_insert_waypoint, ego_state)
+                    else:
+                        waypoints_adder_in_prova(waypoints, min_idx, min_idx+1, sampling_rate=1) #L'unico waypoint che possiamo prendere sta più lontano del range, quindi aggiungiamo dei waypoint davanti a lui
+                        goal_index = min_idx+1
+                        self._traffic_light.has_changed = False
                     return goal_index, True
                 
                 

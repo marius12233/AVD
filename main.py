@@ -43,7 +43,7 @@ from traffic_light import TrafficLight
 ###############################################################################
 # CONFIGURABLE PARAMENTERS DURING EXAM
 ###############################################################################
-PLAYER_START_INDEX = 8#124#133#13#6#22#6#135#135#141#66 150         #  spawn index for player
+PLAYER_START_INDEX = 8##124#133#13#6#22#6#135#135#141#66 150         #  spawn index for player
 DESTINATION_INDEX = 15#55#65#15#55#15#53#53#90#18        # Setting a Destination HERE
 NUM_PEDESTRIANS        = 30      # total number of pedestrians to spawn
 NUM_VEHICLES           = 30      # total number of vehicles to spawn
@@ -1125,9 +1125,17 @@ def exec_waypoint_nav_demo(args):
                 visualize_map(map, img_map, measurements=measurement_data)
                 visualize_waypoints_on_map(map, waypoints, img_map)
                 visualize_goal(map, img_map, waypoints, bp._goal_index)
+
+                #COMPUTE EGO STATE
                 ego_x, ego_y, _, _, _, ego_yaw = get_current_pose(measurement_data)
                 ego_state = [ego_x, ego_y, ego_yaw] #TODO vehicle location
-                #print("Vehicle state: ", ego_state)
+                
+
+                #Display next intersection
+                int_point = tl_tracking.find_next_intersection(ego_state)
+                if int_point is not None:
+                    visualize_point(map, int_point[0], int_point[1], 10, img_map, color=(0,0,225))
+                    visualize_rect(map, (int_point[0]-20, int_point[1]-20, int_point[0]+20, int_point[1]+20), 3, img_map, color=(0,0,225))
                 
 
                 res, res_r, kf_pos = [None]*3
@@ -1156,17 +1164,13 @@ def exec_waypoint_nav_demo(args):
                     if nearest_tl is not None:
                         res, cluster_res = nearest_tl
                         traffic_light.update(res[0], res[1], cluster_res)
-
-                    #Display next intersection
-                    int_point = tl_tracking.find_next_intersection(ego_state)
-                    if int_point is not None:
-                        visualize_point(map, int_point[0], int_point[1], 10, img_map, color=(0,0,225))
-                        visualize_rect(map, (int_point[0]-20, int_point[1]-20, int_point[0]+20, int_point[1]+20), 3, img_map, color=(0,0,225))
+                    else:
+                        print("Traffic light not found: Clusters: ", tl_tracking.get_clusters())
 
 
 
-                    if abs(x) < 40 and abs(y)<40:
-                        visualize_point(map, x_global, y_global, z, img_map, color=(0,225,225))
+                    #if abs(x) < 40 and abs(y)<40:
+                    visualize_point(map, x_global, y_global, z, img_map, color=(0,225,225))
 
                 #print("Local coordinates traffic lights: ", vehicle_bbox_traffic_light)
                 #Visualize traffic light point on world
@@ -1200,23 +1204,13 @@ def exec_waypoint_nav_demo(args):
                     if nearest_tl is not None:
                         res_r, cluster_res_r = nearest_tl
                         traffic_light.update(res_r[0], res_r[1], cluster_res_r)
+                    else:
+                        clusters = tl_tracking.get_clusters()
+                        print("Traffic light not found: Clusters: ", tl_tracking.get_clusters())
 
-                        
+                    #if abs(xr) < 60 and abs(yr)<60:
+                    visualize_point(map, x_globalr, y_globalr, zr, img_map, color=(225,225,0), text=False)
                     
-
-
-
-                    if abs(xr) < 60 and abs(yr)<60:
-                        visualize_point(map, x_globalr, y_globalr, zr, img_map, color=(225,225,0), text=False)
-                    
-                        #print("Global coordinates traffic light right: ", (x_globalr, y_globalr))
-                        #print("Global pose: ", (ego_x, ego_y))
-                #print("Local coordinates traffic lights right: ", vehicle_bbox_traffic_light_r)
-                                    #print("Clusters: ", tl_tracking.get_clusters())
-
-                #if traffic_light.get_pos() is not None:
-                 #   print("Traffic Light State: pos, col, is next, local distance", traffic_light.get_pos(), traffic_light.get_color(), traffic_light._is_next, from_global_to_local_frame(ego_state, traffic_light.get_pos()))
-
 
                 if vehicle_bbox_traffic_light_r is not None:
                     if res_r is not None:

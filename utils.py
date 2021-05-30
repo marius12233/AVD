@@ -61,10 +61,31 @@ def circle_detection(img, display=False):
     
     return circles
 
+def waypoints_adder_v2(waypoints, general_index, next_waypoint_distance, ego_state, direction):    
+ 
+    x,y = from_global_to_local_frame(ego_state, waypoints[general_index][:2])
+    
+    added_waypoint = [[0,0,0]]
+    x_l = x - next_waypoint_distance
+    y_l = y
+ 
+    x_g, y_g = from_local_to_global_frame(ego_state,[x_l,y_l])
+    added_waypoint[0][0] = x_g
+    added_waypoint[0][1] = y_g
+    added_waypoint[0][2] = waypoints[general_index][2]
+    temp = waypoints[general_index:general_index+1]
+    waypoints.resize((len(waypoints)+1, 3), refcheck = False )
+    print(waypoints.shape)
+    waypoints[general_index:general_index+1] = np.array(added_waypoint)[::-1]
+    waypoints[general_index+1:] = temp  
+ 
+    print(waypoints)
+
 
 '''ADDING WAYPOINTS'''
 def waypoints_adder(waypoints, closest_index, goal_index, sampling_rate):
     print("Previous wp: ", waypoints)
+    print("closest_index: ", closest_index)
     print("Goal index: ", goal_index)
     
     if(abs(waypoints[closest_index][0]-waypoints[goal_index][0])>0 or abs(waypoints[closest_index][1]-waypoints[goal_index][1])>0):
@@ -119,5 +140,68 @@ def waypoints_adder(waypoints, closest_index, goal_index, sampling_rate):
             waypoints[closest_index+1:closest_index+sampling_rate+1] = np.array(added_waypoint)[::-1]
             waypoints[closest_index+sampling_rate+1:] = temp  
 
+            print(waypoints)
+
+
+def waypoints_adder_in_prova(waypoints, closest_index, goal_index, sampling_rate):
+    print("Previous wp: ", waypoints)
+    print("Goal index: ", goal_index)
+    
+    if(abs(waypoints[closest_index][0]-waypoints[goal_index][0])>0 or abs(waypoints[closest_index][1]-waypoints[goal_index][1])>0):
+        print("waypoint corrente", waypoints[closest_index])
+        step = 0
+        if(abs(waypoints[closest_index][1]-waypoints[goal_index][1])<0.1):
+            step = (abs(waypoints[closest_index][0]-waypoints[goal_index][0]))/(sampling_rate+1)
+        elif(abs(waypoints[closest_index][0]-waypoints[goal_index][0])<0.1) :
+            step = (abs(waypoints[closest_index][1]-waypoints[goal_index][1]))/(sampling_rate+1)
+        print("STEP IS: {}".format(step))
+        added_waypoint = []
+        for el in range(0,sampling_rate):
+            added_waypoint.append([0,0,0])
+        if(abs(waypoints[closest_index][1]-waypoints[goal_index][1])<0.1):
+            direction = 0
+            if(waypoints[closest_index][0]-waypoints[goal_index][0]>0):
+                direction = -1
+            else:
+                direction = 1
+            
+            for el in range(0,sampling_rate):
+                added_waypoint[el][0] = waypoints[closest_index][0] + direction*(el+1)*step
+                added_waypoint[el][1] = waypoints[closest_index][1]
+                added_waypoint[el][2] = waypoints[closest_index][2]
+ 
+            print("added corrected {} \n".format(added_waypoint))    
+            if(direction == -1):
+                added_waypoint.reverse()
+            temp = waypoints[closest_index+1:]
+            waypoints.resize((len(waypoints)+sampling_rate, 3), refcheck = False )
+            print(waypoints.shape)
+            waypoints[closest_index+1:closest_index+sampling_rate+1] = np.array(added_waypoint)[::-1]
+            waypoints[closest_index + sampling_rate+1:] = temp  
+ 
+            print(waypoints)
+            
+        
+        elif(abs(waypoints[closest_index][0]-waypoints[goal_index][0])<0.1):
+            direction = 0
+            if(waypoints[closest_index][1]-waypoints[goal_index][1]>0):
+                direction = -1
+            else:
+                direction = 1
+            
+            for el in range(0,sampling_rate):
+                added_waypoint[el][1] = waypoints[closest_index][1] + direction*(el+1)*step
+                added_waypoint[el][0] = waypoints[closest_index][0]
+                added_waypoint[el][2] = waypoints[closest_index][2]
+ 
+            print("added corrected {} \n".format(added_waypoint))    
+            if(direction == -1):
+                added_waypoint.reverse()
+            temp = waypoints[closest_index+1:]
+            waypoints.resize((len(waypoints)+sampling_rate+1, 3), refcheck = False )
+            print(waypoints.shape)
+            waypoints[closest_index+1:closest_index+sampling_rate+1] = np.array(added_waypoint)[::-1]
+            waypoints[closest_index+sampling_rate+1:] = temp  
+ 
             print(waypoints)
         
