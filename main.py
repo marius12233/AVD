@@ -43,10 +43,10 @@ from traffic_light import TrafficLight
 ###############################################################################
 # CONFIGURABLE PARAMENTERS DURING EXAM
 ###############################################################################
-PLAYER_START_INDEX = 8##124#133#13#6#22#6#135#135#141#66 150         #  spawn index for player
-DESTINATION_INDEX = 15#55#65#15#55#15#53#53#90#18        # Setting a Destination HERE
-NUM_PEDESTRIANS        = 30      # total number of pedestrians to spawn
-NUM_VEHICLES           = 30      # total number of vehicles to spawn
+PLAYER_START_INDEX = 24##124#133#13#6#22#6#135#135#141#66 150         #  spawn index for player
+DESTINATION_INDEX = 90#55#65#15#55#15#53#53#90#18        # Setting a Destination HERE
+NUM_PEDESTRIANS        = 200      # total number of pedestrians to spawn
+NUM_VEHICLES           = 50     # total number of vehicles to spawn
 SEED_PEDESTRIANS       = 0      # seed for pedestrian spawn randomizer
 SEED_VEHICLES          = 0     # seed for vehicle spawn randomizer
 ###############################################################################àà
@@ -100,7 +100,7 @@ PATH_SELECT_WEIGHT     = 10
 A_MAX                  = 2.5              # m/s^2
 SLOW_SPEED             = 2.0              # m/s
 STOP_LINE_BUFFER       = 3.5              # m
-LEAD_VEHICLE_LOOKAHEAD = 10.0             # m
+LEAD_VEHICLE_LOOKAHEAD = 20.0             # m
 LP_FREQUENCY_DIVISOR   = 2                # Frequency divisor to make the 
                                           # local planner operate at a lower
                                           # frequency than the controller
@@ -549,7 +549,7 @@ def visualize_rect(carla_map, pos, till, img, color=(0,0,225)):
     max_pos = pos[2:]
     xy_p_min = carla_map.convert_to_pixel([min_pos[0], min_pos[1], 38])
     xy_p_max = carla_map.convert_to_pixel([max_pos[0], max_pos[1], 38])
-    cv2.rectangle(img, xy_p_min, xy_p_max, color)
+    #cv2.rectangle(img, xy_p_min, xy_p_max, color)
 
 def visualize_map(carla_map, img, measurements=None):
     if measurements:
@@ -706,7 +706,7 @@ def exec_waypoint_nav_demo(args):
 
         waypoints = []
         waypoints_route = mission_planner.compute_route(source, source_ori, destination, destination_ori)
-        desired_speed = 5.0
+        desired_speed = 10.0
         turn_speed    = 2.0
 
         intersection_nodes = mission_planner.get_intersection_nodes()
@@ -1040,7 +1040,7 @@ def exec_waypoint_nav_demo(args):
             # Obtain Lead Vehicle information.
             prob_obs ={}
             prob_obs["vehicle"]={"pos":[],"speed":[],"bounding_box":[], "rot":[]}
-            prob_obs["pedestrian"]={"pos":[],"bounding_box":[]}
+            prob_obs["pedestrian"]={"pos":[],"bounding_box":[],"speed":[],"rot":[]}
             
             for agent in measurement_data.non_player_agents:
                 agent_id = agent.id
@@ -1059,8 +1059,8 @@ def exec_waypoint_nav_demo(args):
                     prob_obs["pedestrian"]["pos"].append([agent.pedestrian.transform.location.x,
                                            agent.pedestrian.transform.location.y])
                     prob_obs["pedestrian"]["bounding_box"].append(obstacle_to_world(agent.pedestrian.transform.location,agent.pedestrian.bounding_box.extent,agent.pedestrian.transform.rotation))
-            
-            
+                    prob_obs["pedestrian"]["speed"].append(agent.pedestrian.forward_speed)
+                    prob_obs["pedestrian"]["rot"].append([agent.pedestrian.transform.orientation.x,agent.pedestrian.transform.orientation.y])
 
             # Execute the behaviour and local planning in the current instance
             # Note that updating the local path during every controller update
@@ -1164,8 +1164,8 @@ def exec_waypoint_nav_demo(args):
                     if nearest_tl is not None:
                         res, cluster_res = nearest_tl
                         traffic_light.update(res[0], res[1], cluster_res)
-                    else:
-                        print("Traffic light not found: Clusters: ", tl_tracking.get_clusters())
+                    #else:
+                        #print("Traffic light not found: Clusters: ", tl_tracking.get_clusters())
 
 
 
@@ -1206,7 +1206,7 @@ def exec_waypoint_nav_demo(args):
                         traffic_light.update(res_r[0], res_r[1], cluster_res_r)
                     else:
                         clusters = tl_tracking.get_clusters()
-                        print("Traffic light not found: Clusters: ", tl_tracking.get_clusters())
+                        #print("Traffic light not found: Clusters: ", tl_tracking.get_clusters())
 
                     #if abs(xr) < 60 and abs(yr)<60:
                     visualize_point(map, x_globalr, y_globalr, zr, img_map, color=(225,225,0), text=False)
@@ -1264,7 +1264,7 @@ def exec_waypoint_nav_demo(args):
                 
                 closest_vehicle_index=bp.check_forward_closest_vehicle(ego_state,(ego_orientation.x, ego_orientation.y),prob_obs["vehicle"]["pos"], prob_obs["vehicle"]["rot"])
                 
-
+                bp.check_for_closest_pedestrian(ego_state,(ego_orientation.x, ego_orientation.y),prob_obs["pedestrian"]["pos"],prob_obs["pedestrian"]["speed"],prob_obs["pedestrian"]["rot"])
                 #Setting bp variables
                 bp.set_next_intersection(tl_tracking.find_next_intersection(ego_state))
                 # Set lookahead based on current speed.
@@ -1285,9 +1285,14 @@ def exec_waypoint_nav_demo(args):
                     
                 if  bp.get_follow_lead_vehicle():
                     print("----Follow Lead----")
+                    lead_car_state=[prob_obs["vehicle"]["pos"][closest_vehicle_index][0], prob_obs["vehicle"]["pos"][closest_vehicle_index][1], prob_obs["vehicle"]["speed"][closest_vehicle_index]]
                     prob_obs["vehicle"]["bounding_box"].pop(closest_vehicle_index)        
                     prob_obs["vehicle"]["pos"].pop(closest_vehicle_index)
                     prob_obs["vehicle"]["rot"].pop(closest_vehicle_index)
+                else:
+                    lead_car_state=None   
+                
+
                 # Compute the goal state set from the behavioural planner's computed goal state.
                 goal_state_set = lp.get_goal_state_set(bp._goal_index, bp._goal_state, waypoints, ego_state)
 
@@ -1300,17 +1305,18 @@ def exec_waypoint_nav_demo(args):
                 # Perform collision checking.
                 if(len(paths)>0):
                     collision_check_array=[ True ]*len(paths)
-                    prob_coll_pedestrian=bp.check_for_pedestrian(ego_state,prob_obs["pedestrian"]["pos"],prob_obs["pedestrian"]["bounding_box"])
+                    #prob_coll_pedestrian=bp.check_for_pedestrian(ego_state,prob_obs["pedestrian"]["pos"],prob_obs["pedestrian"]["bounding_box"])
                     prob_coll_vehicle=bp.check_for_vehicle(ego_state,prob_obs["vehicle"]["pos"],prob_obs["vehicle"]["bounding_box"])
-                    for bb in prob_coll_pedestrian + prob_coll_vehicle:
+                    for bb in  prob_coll_vehicle:
                         cc = lp._collision_checker.collision_check(paths, [bb])
                         collision_check_array=list(np.array(cc) & np.array(collision_check_array))
-                
-                # Compute the best local path.
-                best_index = lp._collision_checker.select_best_path_index(paths, collision_check_array, bp._goal_state)
+                    
+                # Compute the best local path.       
+                best_index = lp._collision_checker.select_best_path_index(paths, collision_check_array, bp._goal_state)   
+
                 # If no path was feasible, continue to follow the previous best path.
-                if best_index == None:
-    
+                
+                if best_index ==None:
                     best_path = lp._prev_best_path
                 else:
                     best_path = paths[best_index]
@@ -1319,11 +1325,7 @@ def exec_waypoint_nav_demo(args):
                 if best_path is not None:
                     # Compute the velocity profile for the path, and compute the waypoints.
                     desired_speed = bp._goal_state[2]
-                    if bp.get_follow_lead_vehicle() :
-                        
-                        lead_car_state = [prob_obs["vehicle"]["pos"][closest_vehicle_index][0], prob_obs["vehicle"]["pos"][closest_vehicle_index][1], prob_obs["vehicle"]["speed"][closest_vehicle_index]]
-                    else :
-                        lead_car_state=None
+                    
                     decelerate_to_stop = bp._state == behavioural_planner.DECELERATE_TO_STOP
                     local_waypoints = lp._velocity_planner.compute_velocity_profile(best_path, desired_speed, ego_state, current_speed, decelerate_to_stop, lead_car_state, bp.get_follow_lead_vehicle())
 

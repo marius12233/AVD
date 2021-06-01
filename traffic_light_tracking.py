@@ -5,7 +5,7 @@ from scipy.spatial import distance
 from utils import from_global_to_local_frame, from_local_to_global_frame, centeroidnp
 from pykalman import KalmanFilter
 
-MAX_DIM_COLORS = 7
+MAX_DIM_COLORS = 5
 
 def apply_kalman_filter(measurements, show=False):
     if len(measurements) <2:
@@ -47,8 +47,16 @@ class TrafficLightTracking:
         ## KALMAN FILTER meas
         self._measurements = []
         self._kf_pos = None
+    
 
+    def turn_to_next_intersection(self, waypoints):
+        intersection_nodes = self._intersection_nodes
+        if intersection_nodes is None:
+            return None
+        #TODO: ti dice se alla prossima intersezione stai girando
 
+        
+                
     def find_next_intersection(self, ego_state):
         intersection_nodes = self._intersection_nodes
         if intersection_nodes is None:
@@ -114,6 +122,7 @@ class TrafficLightTracking:
             self._kf_pos = apply_kalman_filter(meas)
         """
 
+        
 
 
         #Filter points
@@ -124,31 +133,22 @@ class TrafficLightTracking:
         #Filtra i punti che hanno distanza maggiore di 20 dalla prossima intersezione
         pos_local = from_global_to_local_frame(ego_state, pos_global)
         next_intersection = self.find_next_intersection(ego_state)
+        print("New points: ", pos_global)
 
         if next_intersection is None: #probably I stay in a curve
             return
         
         next_intersection = next_intersection[:2]
-        print("Next intersection: ", next_intersection)
+        
         next_intersection_local = from_global_to_local_frame(ego_state, next_intersection)
         dist_next_intersection_to_point = np.linalg.norm(np.array(pos_global) - np.array(next_intersection))
         if  dist_next_intersection_to_point > 20: #se il punto trovato ha distanza maggiore di 20m  o sta davanti la prossima intersezione, devo scartarlo
-            print("Distance from next intersection: ", dist_next_intersection_to_point)
-            print("point: {} , intersection: {}".format(pos_local, next_intersection_local))
-            return
-         
-        
 
-        #Calcolo l'intersezione più vicina
-        nearest_intersection = self.find_nearest_intersection(ego_state)
-        #La porto in terna veicolo
-        nearest_intersectioin_local = from_global_to_local_frame(ego_state, nearest_intersection[:2])
-        #se la x del nearest intersection è <0 significa che al momento della misurazione 
-        #ho già passato l'incrocio più vicino
-        pos_local = from_global_to_local_frame(ego_state, pos_global)
+            return
+
         #Se la misurazione che sto effettuando sta più avanti dell'incrocio più vicino, skippala
-        if pos_local[0] > nearest_intersectioin_local[0]:
-            print("Measure before")
+
+        if pos_local[0] > next_intersection_local[0]:
             return
 
         d=np.inf
@@ -202,6 +202,7 @@ class TrafficLightTracking:
             dist = distance.euclidean(np.array(k), np.array(ego_state[:2]))
             x_l, y_l = from_global_to_local_frame(ego_state, k)
             #add condition that it has to be forward
+            print("Cluster: ", k)
 
             #print("my_distance: ", dist)
             if dist<d and len(self.groups[k])>=self.min_measurements and x_l > 0 and y_l>0:

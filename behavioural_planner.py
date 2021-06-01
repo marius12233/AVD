@@ -3,13 +3,14 @@ from traffic_light import GREEN, TrafficLight
 from utils import from_global_to_local_frame
 import numpy as np
 import math
-from utils import from_global_to_local_frame, waypoints_adder, waypoints_adder_v2, waypoints_adder_in_prova
+from utils import from_global_to_local_frame, waypoints_adder, waypoints_adder_v2, waypoints_adder_in_prova,waypoint_adder_ahead,waypoint_add_ahead_distance
 
 # State machine states
 FOLLOW_LANE = 0
 DECELERATE_TO_STOP = 1
 STAY_STOPPED = 2
 DECELERATE_TO_INTERSECTION = 3
+CHANGE_LANE_ON_LEFT=4
 # Stop speed threshold
 STOP_THRESHOLD = 0.03
 # Number of cycles before moving from stop sign.
@@ -17,6 +18,9 @@ STOP_COUNTS = 10
 MAX_DIST_TO_STOP = 7
 MIN_DIST_TO_STOP = 3
 METER_TO_DECELERATE = 20
+#Traffic light
+RED=1
+GREEN=0
 
 class BehaviouralPlanner:
     def __init__(self, lookahead, lead_vehicle_lookahead):
@@ -27,12 +31,14 @@ class BehaviouralPlanner:
         self._obstacle_on_lane              = False
         self._goal_state                    = [0.0, 0.0, 0.0]
         self._goal_index                    = 0
-        self._stop_count                    = 0
+        self._stop_count_for_pedestrian= 0
         self._no_tl_found_counter = 0
         self._traffic_light:TrafficLight = None
         self._has_tl_changed_pos = False #Ci serve per dire che se il semaforo è quello di sempre mi risparmio di fare le operazioni
         self._desired_speed_intersection = 2
         self._next_intersection = None
+        self._closest_pedestrian=None
+        
     
     def set_lookahead(self, lookahead):
         self._lookahead = lookahead
@@ -46,61 +52,16 @@ class BehaviouralPlanner:
     
     def set_next_intersection(self, next_intersection):
         self._next_intersection = next_intersection
-        
+
+    def set_pedestrian_on_lane(self,pedestrian_on_lane):
+        self._pedestrian_on_lane=pedestrian_on_lane 
+    def set_position_to_stop(self,position_to_stop):
+        self._position_to_stop=position_to_stop
     def get_follow_lead_vehicle(self):
         return self._follow_lead_vehicle 
     # Handles state transitions and computes the goal state.
     def transition_state(self, waypoints, ego_state, closed_loop_speed):
-        """Handles state transitions and computes the goal state.  
-        
-        args:
-            waypoints: current waypoints to track (global frame). 
-                length and speed in m and m/s.
-                (includes speed to track at each x,y location.)
-                format: [[x0, y0, v0],
-                         [x1, y1, v1],
-                         ...
-                         [xn, yn, vn]]
-                example:
-                    waypoints[2][1]: 
-                    returns the 3rd waypoint's y position
-
-                    waypoints[5]:
-                    returns [x5, y5, v5] (6th waypoint)
-            ego_state: ego state vector for the vehicle. (global frame)
-                format: [ego_x, ego_y, ego_yaw, ego_open_loop_speed]
-                    ego_x and ego_y     : position (m)
-                    ego_yaw             : top-down orientation [-pi to pi]
-                    ego_open_loop_speed : open loop speed (m/s)
-            closed_loop_speed: current (closed-loop) speed for vehicle (m/s)
-        variables to set:
-            self._goal_index: Goal index for the vehicle to reach
-                i.e. waypoints[self._goal_index] gives the goal waypoint
-            self._goal_state: Goal state for the vehicle to reach (global frame)
-                format: [x_goal, y_goal, v_goal]
-            self._state: The current state of the vehicle.
-                available states: 
-                    FOLLOW_LANE         : Follow the global waypoints (lane).
-                    DECELERATE_TO_STOP  : Decelerate to stop.
-                    STAY_STOPPED        : Stay stopped.
-            self._stop_count: Counter used to count the number of cycles which
-                the vehicle was in the STAY_STOPPED state so far.
-        useful_constants:
-            STOP_THRESHOLD  : Stop speed threshold (m). The vehicle should fully
-                              stop when its speed falls within this threshold.
-            STOP_COUNTS     : Number of cycles (simulation iterations) 
-                              before moving from stop sign.
-        """
-        # In this state, continue tracking the lane by finding the
-        # goal index in the waypoint list that is within the lookahead
-        # distance. Then, check to see if the waypoint path intersects
-        # with any stop lines. If it does, then ensure that the goal
-        # state enforces the car to be stopped before the stop line.
-        # You should use the get_closest_index(), get_goal_index(), and
-        # check_for_stop_signs() helper functions.
-        # Make sure that get_closest_index() and get_goal_index() functions are
-        # complete, and examine the check_for_stop_signs() function to
-        # understand it.
+       
         print("STATE: ", self._state)
         if self._state == FOLLOW_LANE:
             #print("FOLLOW_LANE")
@@ -115,98 +76,106 @@ class BehaviouralPlanner:
             self._goal_index = goal_index
             self._goal_state = waypoints[goal_index]
             #Check intersection
-
-            goal_index, next_intersection_found = self.check_for_next_intersection(waypoints, closest_index, goal_index, ego_state)
             
-            if next_intersection_found: 
-                self._goal_index = goal_index
-                self._goal_state = waypoints[goal_index]
-                self._goal_state[2] = self._desired_speed_intersection
-                print("DECELERA ALL'INTERSEZIONE!!")
-                self._state = DECELERATE_TO_INTERSECTION  
-
-            # Check stop signs
+            
             goal_index, traffic_light_found = self.check_for_traffic_light(waypoints, closest_index, goal_index, ego_state)
-            
-            #if self._traffic_light is not None:
-            #    print("In Follow Lane: tl, tl_found", self._traffic_light.get_pos(), self._traffic_light.get_color(), self._traffic_light.is_next(), self._traffic_light.has_changed,traffic_light_found)
             
             if traffic_light_found: 
                 self._goal_index = goal_index
                 self._goal_state = waypoints[goal_index]
                 self._goal_state[2] = 0
                 print("ROSSO!!")
-                print("TL Waypoint: ", from_global_to_local_frame(ego_state, self._goal_state[:2]))
+                #print("TL Waypoint: ", from_global_to_local_frame(ego_state, self._goal_state[:2]))
                 self._state = DECELERATE_TO_STOP
             
+            
+            goal_index,try_to_stop=self.try_to_stop(waypoints,closest_index,goal_index,ego_state)
 
+            if try_to_stop:
+                self._goal_index = goal_index
+                self._goal_state = waypoints[goal_index]
+                self._goal_state[2] = 0
+                print("Mi fermo tra: ",from_global_to_local_frame(ego_state,waypoints[goal_index][:2]))
+                self._state = DECELERATE_TO_STOP
         # In this state, check if we have reached a complete stop. Use the
         # closed loop speed to do so, to ensure we are actually at a complete
         # stop, and compare to STOP_THRESHOLD.  If so, transition to the next
         # state.
         elif self._state == DECELERATE_TO_STOP:
-            """
-            #If you are decelerating and the traffic lights become green, you can go!
-            closest_len, closest_index = get_closest_index(waypoints, ego_state)
-
-            # Next, find the goal index that lies within the lookahead distance
-            # along the waypoints.
-
-            """
+           
             
-            #Prima testare se si ferma sotto sotto i waypoints
-
-            #Decellero per entrare nello stato dis top, tuttavia se il semaforo diventa verde riparto
-            #Riparto anche se il semaforo è next
-            """
+            color = RED
             closest_len, closest_index = get_closest_index(waypoints, ego_state)
-            goal_index, traffic_light_found = self.check_for_traffic_light(waypoints, closest_index, self._goal_index, ego_state)
-            if traffic_light_found: 
+            goal_index = self.get_goal_index(waypoints, ego_state, closest_len, closest_index)
+            
+            goal_index,try_to_stop=self.try_to_stop(waypoints,closest_index,goal_index,ego_state)
+            
+            if try_to_stop:
                 self._goal_index = goal_index
                 self._goal_state = waypoints[goal_index]
                 self._goal_state[2] = 0
-                print("Waypoint: ", self._goal_state)
-                self._state = DECELERATE_TO_STOP
-            """
-            color = 1
-
-            if self._traffic_light is not None:
+                print("Mi fermo tra: ",from_global_to_local_frame(ego_state,waypoints[goal_index][:2]))
+                self._state=DECELERATE_TO_STOP
+            elif  self._traffic_light is not None:
                 color = self._traffic_light.get_color()
-                if  color == 0 or not self._traffic_light.is_next():
+                if  color == GREEN or not self._traffic_light.is_next():
                     print("SEMAFORO CAMBIATO: ROSSO -> VERDE")
                     self._state = FOLLOW_LANE
-            
+                
 
-            if color and self._traffic_light.is_next():
-                if abs(closed_loop_speed) <= STOP_THRESHOLD:
-                    self._state = STAY_STOPPED
-                    self._stop_count = 0
+
+
+            if abs(closed_loop_speed) <= STOP_THRESHOLD and self._state != FOLLOW_LANE:
+                self._state = STAY_STOPPED  
+                    
 
         # In this state, check to see if we have stayed stopped for at
         # least STOP_COUNTS number of cycles. If so, we can now leave
         # the stop sign and transition to the next state.
         elif self._state == STAY_STOPPED:
-            color=0
+            tf_light=True
+            color=GREEN
+
             if self._traffic_light is not None:
                 color = self._traffic_light.get_color()
-                
-            if  color==0 and self._traffic_light.is_next():
-                print("SEMAFORO CAMBIATO: ROSSO -> VERDE")
-                self._state = FOLLOW_LANE
-        
+                if color == RED and self._traffic_light.is_next():
+                    tf_light=False   
+                if  color==GREEN and self._traffic_light.is_next():
+                    self._state = FOLLOW_LANE
+            
+            
+            
+            
+            closest_len, closest_index = get_closest_index(waypoints, ego_state)
+            goal_index = self.get_goal_index(waypoints, ego_state, closest_len, closest_index)
+            goal_index,try_to_stop=self.try_to_stop(waypoints,closest_index,goal_index,ego_state)
+            if try_to_stop:
+                self._state=STAY_STOPPED
+            elif tf_light:
+                self._state=FOLLOW_LANE
+
+
+
+
+        else:
+            raise ValueError('Invalid state value.')
+        '''
         elif self._state == DECELERATE_TO_INTERSECTION:
             #Se sto a 20 m dall'incrocio torno in FOLLOW LANE
             next_intersection = self._next_intersection
             next_intersection_local = from_global_to_local_frame(ego_state, next_intersection[:2])
-            if next_intersection_local[0] <= METER_TO_DECELERATE: #Se stiamo almeno a 20 m dal prossimo incrocio
-                self._state = FOLLOW_LANE
-            else:
-                 # Check stop signs
-                closest_len, closest_index = get_closest_index(waypoints, ego_state)
+            
+            closest_len, closest_index = get_closest_index(waypoints, ego_state)
 
                 # Next, find the goal index that lies within the lookahead distance
                 # along the waypoints.
-                goal_index = self.get_goal_index(waypoints, ego_state, closest_len, closest_index)
+            goal_index = self.get_goal_index(waypoints, ego_state, closest_len, closest_index)
+
+            if next_intersection_local[0] <= METER_TO_DECELERATE: #Se stiamo meno di 20 m dal prossimo incrocio
+                self._state = FOLLOW_LANE
+            else:
+                 # Check stop signs
+                
                 
                 goal_index, traffic_light_found = self.check_for_traffic_light(waypoints, closest_index, goal_index, ego_state)
                 
@@ -219,8 +188,17 @@ class BehaviouralPlanner:
                     self._goal_state[2] = 0
                     print("ROSSO!! Da dec. to int. a dec. to stop")
                     self._state = DECELERATE_TO_STOP
-        else:
-            raise ValueError('Invalid state value.')
+                
+            goal_index,try_to_stop=self.try_to_stop(waypoints,closest_index,goal_index,ego_state)
+
+            if try_to_stop:
+                self._goal_index = goal_index
+                self._goal_state = waypoints[goal_index]
+                self._goal_state[2] = 0
+                print("Mi fermo tra: ",from_global_to_local_frame(ego_state,waypoints[goal_index][:2]))
+                self._state = DECELERATE_TO_STOP
+        '''
+        
 
 
     def check_for_next_intersection(self, waypoints, closest_index, goal_index, ego_state):
@@ -273,7 +251,7 @@ class BehaviouralPlanner:
 
 
 
-
+    
 
     
     def check_for_traffic_light(self, waypoints, closest_index, goal_index, ego_state):
@@ -308,7 +286,6 @@ class BehaviouralPlanner:
                 stop_sign_found: Boolean flag for whether a stop sign was found or not
         """
 
-        
         if self._traffic_light is None:
             return goal_index, False
         
@@ -319,67 +296,41 @@ class BehaviouralPlanner:
         #Col verde non facciamo niente
         color = self._traffic_light.get_color()
         if color == GREEN:
-            #print("VERDE!")
+            print("SEMAFORO VERDE!")
+            return goal_index, False
+        
+
+        s = np.array(self._traffic_light.get_pos()[0:2])
+        s_local = from_global_to_local_frame(ego_state, s)
+        
+        if s_local[0] > self._lookahead: #Non sono arrivato col veicolo a guardare i waypoints nel range specificato
             return goal_index, False
 
         min_idx = None
         min_dist = np.Inf
-        #print("DISTANCES")
-        #print("======================")
-        #if not self._traffic_light.has_changed: #Se è cambiata la posizione del semaforo calcola di nuovo il goal index
-        #    self._traffic_light.has_changed = False
-        #else:
-        if self._traffic_light.has_changed:
+        if self._traffic_light.has_changed or self._traffic_light._changed_color:
+            #SCelgo di fermarmi a distanza 6 dal semaforo
+            #distanza dal semaforo
+            print("CHECK FOR TRAFFIC LIGHT")
 
-            s = np.array(self._traffic_light.get_pos()[0:2])
-            s_local = from_global_to_local_frame(ego_state, s)
+            preferred_distance = s_local[0]-MIN_DIST_TO_STOP-1
+            min_idx,bl = waypoint_add_ahead_distance(waypoints, closest_index, goal_index, preferred_distance, ego_state)
 
-            for i in range(closest_index, goal_index):
-                # Check to see if path segment crosses any of the stop lines.
-
-                wp  = np.array(waypoints[i][0:2])
-                wp_local = from_global_to_local_frame(ego_state, wp)
-                dist_wp_local = s_local[0] - wp_local[0]
-                #print("d[{}]: {}".format(i, dist_wp_s))
-
-                if wp_local[0] > s_local[0]: #skip waypoints further than traffic light respect to vehicle
-                    continue
-
-                if dist_wp_local < MIN_DIST_TO_STOP:
-                    continue
-                
-                if dist_wp_local < min_dist:
-                    min_dist = dist_wp_local
-                    min_idx = i
-
-            dist_v = self._lookahead  #Distanza per vedere tutti i waypoints tra 3m e 12m dal semaforo
-
-            if min_dist > MAX_DIST_TO_STOP:
-
-                if s_local[0] > dist_v: #Non sono arrivato col veicolo a guardare i waypoints nel range specificato
-                    return goal_index, False
-            
-                else:
-                    if min_idx is None:#Non ci sono waypoints disponibili nel range e il prossimo waypoint da raggiungere sta nell'intorno di 3 metri dal semaforo, quindi aggiungiamo un waypoint dietro di lui
-                        min_idx = closest_index
-                        distance_to_insert_waypoint = s_local[0]/2
-                        waypoints_adder_v2(waypoints, min_idx, distance_to_insert_waypoint, ego_state)
-                    else:
-                        waypoints_adder_in_prova(waypoints, min_idx, min_idx+1, sampling_rate=1) #L'unico waypoint che possiamo prendere sta più lontano del range, quindi aggiungiamo dei waypoint davanti a lui
-                        goal_index = min_idx+1
-                        self._traffic_light.has_changed = False
-                    return goal_index, True
-                
-                
-
+            #print("Min idx is: ", min_idx)
             # If there is an intersection with a stop line, update
             # the goal state to stop before the goal line.
             if min_idx is not None:
                 goal_index = min_idx
-                self._traffic_light.has_changed = False
+                if self._traffic_light.has_changed:
+                    self._traffic_light.has_changed = False
+
+                if self._traffic_light._changed_color:
+                    self._traffic_light._changed_color = False
+
                 return goal_index, True
 
         return goal_index, False
+
 
     # Gets the goal index in the list of waypoints, based on the lookahead and
     # the current ego state. In particular, find the earliest waypoint that has accumulated
@@ -518,13 +469,45 @@ class BehaviouralPlanner:
 
             self._follow_lead_vehicle = False
         
-    def check_for_pedestrian(self,ego_state, pedestrian_position,pedestrian_bb):
-        prob_coll_pedestrian=[]
-        for i in range(len( pedestrian_position )):
-            if from_global_to_local_frame(ego_state,pedestrian_position[i])[0]>0 :
-                prob_coll_pedestrian.append(pedestrian_bb[i])
-        return prob_coll_pedestrian
+    def check_for_closest_pedestrian(self,ego_state,ego_orientation,pedestrian_position,pedestrian_speed,pedestrian_rot):
+        local_pos_closest=np.inf
+        closest_ped_idx=None
+        ego_rot_x = ego_orientation[0]
+        ego_rot_y = ego_orientation[1]
+        ego_angle = math.atan2(ego_rot_y,ego_rot_x)
+        if ego_angle < 0:
+            ego_angle+=2*math.pi
         
+        for i in range(len( pedestrian_position )):
+            pedestrian_angle = math.atan2(pedestrian_rot[i][1],pedestrian_rot[i][0])
+            if pedestrian_angle < 0:
+                pedestrian_angle+=2*math.pi
+            local_pos=from_global_to_local_frame(ego_state,pedestrian_position[i])
+            if local_pos[0]>0 and local_pos[0] <30 and local_pos[1]>-5 and local_pos[1]<5 and pedestrian_angle < ego_angle-0.20 and pedestrian_angle < ego_angle-0.20:
+                if local_pos[0] < local_pos_closest:
+                    local_pos_closest=local_pos[0]
+                    closest_ped_idx=i
+                    
+        if local_pos_closest == np.inf:
+            self._closest_pedestrian= None
+        else:
+            if self._closest_pedestrian is None:
+                self._closest_pedestrian={}
+                self._closest_pedestrian["pos"]=pedestrian_position[closest_ped_idx]
+                self._closest_pedestrian["index"]=closest_ped_idx
+                self._closest_pedestrian["speed"]=pedestrian_speed[closest_ped_idx]
+                self._closest_pedestrian["count"]=0
+            elif self._closest_pedestrian["index"]==closest_ped_idx:
+                self._closest_pedestrian["count"]+=1
+                self._closest_pedestrian["pos"]=pedestrian_position[closest_ped_idx]
+                self._closest_pedestrian["speed"]=pedestrian_speed[closest_ped_idx]
+            else:
+                self._closest_pedestrian["pos"]=pedestrian_position[closest_ped_idx]
+                self._closest_pedestrian["index"]=closest_ped_idx
+                self._closest_pedestrian["speed"]=pedestrian_speed[closest_ped_idx]
+                self._closest_pedestrian["count"]=0
+        print(self._closest_pedestrian)
+        return
     def check_for_vehicle(self,ego_state, vehicle_position,vehicle_bb):
         prob_coll_vehicle=[]
         for i in range(len( vehicle_position )):
@@ -559,6 +542,18 @@ class BehaviouralPlanner:
                         lead_car_local_pos=local_pos
             
         return lead_car_idx
+    
+    def try_to_stop(self,waypoints,closest_index,goal_index,ego_state):
+        if self._closest_pedestrian is None:
+            return goal_index, False
+        
+        
+        closest_pedestrian_local = from_global_to_local_frame(ego_state, self._closest_pedestrian["pos"])
+        
+        return waypoint_add_ahead_distance(waypoints,closest_index,goal_index,closest_pedestrian_local[0]-8,ego_state)
+        
+         
+        
 
            
 # Compute the waypoint index that is closest to the ego vehicle, and return

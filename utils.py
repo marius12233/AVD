@@ -61,23 +61,24 @@ def circle_detection(img, display=False):
     
     return circles
 
-def waypoints_adder_v2(waypoints, general_index, next_waypoint_distance, ego_state, direction):    
- 
+def waypoints_adder_v2(waypoints, general_index, next_waypoint_distance, ego_state):    
+    print("Aggiungo un waypoint al centro")
     x,y = from_global_to_local_frame(ego_state, waypoints[general_index][:2])
     
     added_waypoint = [[0,0,0]]
     x_l = x - next_waypoint_distance
     y_l = y
- 
+    print("Previous waypoints:", waypoints)
     x_g, y_g = from_local_to_global_frame(ego_state,[x_l,y_l])
     added_waypoint[0][0] = x_g
     added_waypoint[0][1] = y_g
     added_waypoint[0][2] = waypoints[general_index][2]
-    temp = waypoints[general_index:general_index+1]
+    temp = waypoints[general_index:]
     waypoints.resize((len(waypoints)+1, 3), refcheck = False )
-    print(waypoints.shape)
-    waypoints[general_index:general_index+1] = np.array(added_waypoint)[::-1]
+    waypoints[general_index:general_index+1] = np.array(added_waypoint)
     waypoints[general_index+1:] = temp  
+
+    print("Added waypoint: ", added_waypoint)
  
     print(waypoints)
 
@@ -204,4 +205,145 @@ def waypoints_adder_in_prova(waypoints, closest_index, goal_index, sampling_rate
             waypoints[closest_index+sampling_rate+1:] = temp  
  
             print(waypoints)
+
+
+
+def waypoint_adder_ahead(waypoints, closest_index , ego_state):    
+    
+    print("Aggiungo un waypoint avanti")
+    print("Previous waypoints", waypoints)
+
+    x1,y1 = from_global_to_local_frame(ego_state, waypoints[closest_index][:2])
+
+
+    x2,y2 = from_global_to_local_frame(ego_state, waypoints[closest_index+1][:2])
+   
+
+    added_distance =  abs(x1-x2)//2
+
+
+
+    added_waypoint = [[0,0,0]]
+
+    x_l = x1 + added_distance
+
+    y_l = y1
+
+ 
+
+    x_g, y_g = from_local_to_global_frame(ego_state,[x_l,y_l])
+
+    added_waypoint[0][0] = x_g
+
+    added_waypoint[0][1] = y_g
+
+    added_waypoint[0][2] = waypoints[closest_index][2]
+
+    temp = waypoints[closest_index:]
+
+    waypoints.resize((len(waypoints)+1, 3), refcheck = False )
+
+    print(waypoints.shape)
+
+    waypoints[closest_index:closest_index+1] = np.array(added_waypoint)
+
+    waypoints[closest_index+1:] = temp  
+
+    print("Added waypoint: ", added_waypoint)
+
+    print(waypoints)
+
+def waypoint_add_ahead_distance(waypoints, closest_index, goal_index, next_waypoint_distance, ego_state):
+    if next_waypoint_distance <0 :
+        return goal_index,True
+    added_waypoint = [[0,0,0]]
+    heading_index = None #L'indice a cui devo inserire il waypoint
+    x_l,y_l = from_global_to_local_frame(ego_state, waypoints[closest_index][:2])
+    if x_l < next_waypoint_distance +1 and x_l > next_waypoint_distance :
+        heading_index=closest_index
+        return heading_index,True
+        
+         #Il closest index sta più avanti di dove voglio fermarmi
+        #Devo mettere un waypoint dietro il closest index
+        #print("BEFORE CLOSEST")
+    if x_l > next_waypoint_distance:
+        x_g,y_g = from_local_to_global_frame(ego_state, [next_waypoint_distance, y_l])
+        heading_index = closest_index
+
+    elif x_l < next_waypoint_distance : #La distanza dal closest  index è minore rispetto alla distanza che hai messo
+        #print("AFTER CLOSEST")
+        #scorri i waypoints avanti fino a che non trovi uno con distanza maggiore. QDevi 
+        #mettere il nuovo waypoint dietro questo
+         #Waypoint che sta dopo quello che devo mettere
+        for i in range(closest_index, goal_index):
+            x_l2,y_l2 = from_global_to_local_frame(ego_state, waypoints[i][:2])
+            if x_l2 > next_waypoint_distance - 1 and x_l2 < next_waypoint_distance + 1:
+                print("Ce ne sta gia uno")
+                return i,True
+            elif x_l2 > next_waypoint_distance:
+                x_g,y_g = from_local_to_global_frame(ego_state, [next_waypoint_distance, y_l])
+                heading_index = i
+                break
+
+    if heading_index is None:
+        return goal_index,False
+    
+    
+    added_waypoint[0][0] = x_g
+    added_waypoint[0][1] = y_g
+    added_waypoint[0][2] = waypoints[heading_index][2]
+    temp = waypoints[heading_index:]
+    waypoints.resize((len(waypoints)+1, 3), refcheck = False )
+    waypoints[heading_index:heading_index+1] = np.array(added_waypoint)
+    waypoints[heading_index+1:] = temp
+    print("Added waypoint in :",waypoints[heading_index][:2])
+    return heading_index,True 
+"""
+
+def turn_to_intersection(waypoints, intersection_point, ego_state):
+    
+    d = np.Inf
+    min_idx = None
+    for i in range(len(waypoints)):
+        dist = np.linalg.norm(intersection_point[:2] - waypoints[i][:2])
+        if dist < d:
+            dist=d
+            min_idx = i
+
+    if min_idx == 0 or min_idx == len(waypoints)-1: #Se i punti più vicini all'intersezione sono l'inizio o la fine probabilmante alla prossima intersezione non dobbiamo girare
+        return False
+
+    L=5 if len(waypoints)>10 else len(waypoints)//2 -1
+
+ 
+    #Prendi un wp a 20m daldove stai mo
+    previous = waypoints[min_idx-L]
+    next = waypoints[min_idx+L]
+    if pointOnSegment(previous, waypoints[min_idx], next):
+        return False
+    else:
+        return True
+    
+    local_prev = from_global_to_local_frame(ego_state, previous[:2])
+    local_next = from_global_to_local_frame(ego_state, next[:2])
+    if abs(local_next[1] - local_prev[1]) < 0.1: #Le y differiscono di un valore piccolo
+        return False
+    return True
+"""
+
+def pointOnSegment(p1, p2, p3):
+    if (p2[0] <= max(p1[0], p3[0]) and (p2[0] >= min(p1[0], p3[0])) and \
+       (p2[1] <= max(p1[1], p3[1])) and (p2[1] >= min(p1[1], p3[1]))):
+        return True
+    else:
+        return False
+
+        
+
+
+
+
+        
+
+
         
