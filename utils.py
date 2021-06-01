@@ -290,7 +290,7 @@ def waypoint_add_ahead_distance(waypoints, closest_index, goal_index, next_waypo
     
     
     added_waypoint[0][0] = x_g
-    added_waypoint[0][1] = y_g
+    added_waypoint[0][1] = ego_state[1]
     added_waypoint[0][2] = waypoints[heading_index][2]
     temp = waypoints[heading_index:]
     waypoints.resize((len(waypoints)+1, 3), refcheck = False )

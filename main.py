@@ -20,7 +20,7 @@ import behavioural_planner
 import cv2
 import json 
 from math import sin, cos, pi, tan, sqrt
-from utils import from_global_to_local_frame
+from utils import from_global_to_local_frame, from_local_to_global_frame
 
 # Script level imports
 sys.path.append(os.path.abspath(sys.path[0] + '/..'))
@@ -38,15 +38,15 @@ from traffic_light_detector import TrafficLightDetector, load_model
 from traffic_light_detector_world import TrafficLightDetectorWorld
 from traffic_light_tracking import TrafficLightTracking
 from traffic_light import TrafficLight
-
+from lane_detection_and_following import LaneFollowing
 
 ###############################################################################
 # CONFIGURABLE PARAMENTERS DURING EXAM
 ###############################################################################
-PLAYER_START_INDEX = 24##124#133#13#6#22#6#135#135#141#66 150         #  spawn index for player
-DESTINATION_INDEX = 90#55#65#15#55#15#53#53#90#18        # Setting a Destination HERE
+PLAYER_START_INDEX = 24#24#8#120#8#120#89##124#133#13#6#22#6#135#135#141#66 150         #  spawn index for player
+DESTINATION_INDEX =  90#90#139#63 #139#63#65#55#65#15#55#15#53#53#90#18        # Setting a Destination HERE
 NUM_PEDESTRIANS        = 200      # total number of pedestrians to spawn
-NUM_VEHICLES           = 50     # total number of vehicles to spawn
+NUM_VEHICLES           = 50      # total number of vehicles to spawn
 SEED_PEDESTRIANS       = 0      # seed for pedestrian spawn randomizer
 SEED_VEHICLES          = 0     # seed for vehicle spawn randomizer
 ###############################################################################àà
@@ -92,7 +92,7 @@ DIST_THRESHOLD_TO_LAST_WAYPOINT = 2.0  # some distance from last position before
 NUM_PATHS = 7
 BP_LOOKAHEAD_BASE      = 16.0              # m
 BP_LOOKAHEAD_TIME      = 1.0              # s
-PATH_OFFSET            = 1.5              # m
+PATH_OFFSET            = 1.0#1.5#1.0              # m
 CIRCLE_OFFSETS         = [-1.0, 1.0, 3.0] # m
 CIRCLE_RADII           = [1.5, 1.5, 1.5]  # m
 TIME_GAP               = 1.0              # s
@@ -957,6 +957,7 @@ def exec_waypoint_nav_demo(args):
                                         STOP_LINE_BUFFER)
         bp = behavioural_planner.BehaviouralPlanner(BP_LOOKAHEAD_BASE,
                                                     LEAD_VEHICLE_LOOKAHEAD)
+        lane_following = LaneFollowing(camera_parameters)
         #############################################
         # Perception modules
         #############################################
@@ -1040,8 +1041,7 @@ def exec_waypoint_nav_demo(args):
             # Obtain Lead Vehicle information.
             prob_obs ={}
             prob_obs["vehicle"]={"pos":[],"speed":[],"bounding_box":[], "rot":[]}
-            prob_obs["pedestrian"]={"pos":[],"bounding_box":[],"speed":[],"rot":[]}
-            
+            prob_obs["pedestrian"]={"pos":[],"bounding_box":[],"speed":[],"rot":[]}            
             for agent in measurement_data.non_player_agents:
                 agent_id = agent.id
                 if agent.HasField('vehicle'):
@@ -1061,7 +1061,8 @@ def exec_waypoint_nav_demo(args):
                     prob_obs["pedestrian"]["bounding_box"].append(obstacle_to_world(agent.pedestrian.transform.location,agent.pedestrian.bounding_box.extent,agent.pedestrian.transform.rotation))
                     prob_obs["pedestrian"]["speed"].append(agent.pedestrian.forward_speed)
                     prob_obs["pedestrian"]["rot"].append([agent.pedestrian.transform.orientation.x,agent.pedestrian.transform.orientation.y])
-
+            
+            #print("My bbox: ", measurement_data.player_measurements.bounding_box.extent)
             # Execute the behaviour and local planning in the current instance
             # Note that updating the local path during every controller update
             # produces issues with the tracking performance (imagine everytime
@@ -1130,6 +1131,16 @@ def exec_waypoint_nav_demo(args):
                 ego_x, ego_y, _, _, _, ego_yaw = get_current_pose(measurement_data)
                 ego_state = [ego_x, ego_y, ego_yaw] #TODO vehicle location
                 
+
+                point_on_lane = lane_following.detect(labels_to_array(segmentation_data),depth_data, show_lines=True, image_rgb=camera_data)
+                #point_on_lane = from_local_to_global_frame(ego_state, point_on_lane[:2])
+                #visualize_point(map, point_on_lane[0], point_on_lane[1], 100, img_map, color=(255,255,225))
+                if point_on_lane and point_on_lane[1]<0:
+                    print("Sto nella mia corsia")
+                else:
+                    print("Sto nell'altra corsia")
+                if point_on_lane:
+                    bp._on_current_lane = point_on_lane[1]<0
 
                 #Display next intersection
                 int_point = tl_tracking.find_next_intersection(ego_state)
@@ -1281,18 +1292,32 @@ def exec_waypoint_nav_demo(args):
                     bp.check_for_lead_vehicle(ego_state, prob_obs["vehicle"]["pos"][closest_vehicle_index])
                 else:
                     bp.check_for_lead_vehicle(ego_state, None)
+                
+                #Check if we can make an overtaking
+                may_overtaking = bp.check_overtaking_condition(ego_state, (ego_orientation.x, ego_orientation.y), prob_obs["vehicle"]["pos"], prob_obs["vehicle"]["rot"], prob_obs["vehicle"]["speed"])
 
-                    
-                if  bp.get_follow_lead_vehicle():
+                #Visualize vehicles on map
+                img_map_copy = img_map.copy()
+                for i, v_p in enumerate(prob_obs["vehicle"]["pos"]):
+                    idx_pos = str(i) + "_" + str(int(v_p[0])) + "," + str(int(v_p[1]))
+                    visualize_point(map, v_p[0], v_p[1], 38, img_map_copy, color=(255,0,0), text=str(i))
+                visualize_point(map, ego_state[0], ego_state[1], 38, img_map_copy, color=(0,0,255))
+
+                img_map_copy=cv2.resize(img_map_copy, (1000,1000))
+                cv2.imshow("Cars map", img_map_copy)
+                cv2.waitKey(10)
+
+                if  bp.get_follow_lead_vehicle() and not may_overtaking:
                     print("----Follow Lead----")
+                    print("Idx Lead: ", closest_vehicle_index)
+                    #
                     lead_car_state=[prob_obs["vehicle"]["pos"][closest_vehicle_index][0], prob_obs["vehicle"]["pos"][closest_vehicle_index][1], prob_obs["vehicle"]["speed"][closest_vehicle_index]]
+                    #
                     prob_obs["vehicle"]["bounding_box"].pop(closest_vehicle_index)        
                     prob_obs["vehicle"]["pos"].pop(closest_vehicle_index)
                     prob_obs["vehicle"]["rot"].pop(closest_vehicle_index)
                 else:
-                    lead_car_state=None   
-                
-
+                    lead_car_state=None
                 # Compute the goal state set from the behavioural planner's computed goal state.
                 goal_state_set = lp.get_goal_state_set(bp._goal_index, bp._goal_state, waypoints, ego_state)
 
@@ -1307,16 +1332,22 @@ def exec_waypoint_nav_demo(args):
                     collision_check_array=[ True ]*len(paths)
                     #prob_coll_pedestrian=bp.check_for_pedestrian(ego_state,prob_obs["pedestrian"]["pos"],prob_obs["pedestrian"]["bounding_box"])
                     prob_coll_vehicle=bp.check_for_vehicle(ego_state,prob_obs["vehicle"]["pos"],prob_obs["vehicle"]["bounding_box"])
+                    print("Prob coll. vehicle: ", prob_coll_vehicle)
                     for bb in  prob_coll_vehicle:
                         cc = lp._collision_checker.collision_check(paths, [bb])
                         collision_check_array=list(np.array(cc) & np.array(collision_check_array))
-                    
-                # Compute the best local path.       
-                best_index = lp._collision_checker.select_best_path_index(paths, collision_check_array, bp._goal_state)   
 
+                    #if bp._state == behavioural_planner.OVERTAKING: #Se sto ancora sorpassando togli le ultime 3:
+
+                    #    collision_check_array[-1]=False #TODO: avoid this
+                    #    collision_check_array[-2]=False #TODO: avoid this
+                    #    collision_check_array[-3]=False #TODO: avoid this
+                    #collision_check_array[-2]=False
+                # Compute the best local path.
+                best_index = lp._collision_checker.select_best_path_index(paths, collision_check_array, bp._goal_state)
                 # If no path was feasible, continue to follow the previous best path.
-                
-                if best_index ==None:
+                if best_index == None:
+    
                     best_path = lp._prev_best_path
                 else:
                     best_path = paths[best_index]
