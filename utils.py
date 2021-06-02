@@ -255,7 +255,7 @@ def waypoint_adder_ahead(waypoints, closest_index , ego_state):
 
 def waypoint_add_ahead_distance(waypoints, closest_index, goal_index, next_waypoint_distance, ego_state):
     if next_waypoint_distance <0 :
-        return goal_index
+        return closest_index
     added_waypoint = [[0,0,0]]
     heading_index = None #L'indice a cui devo inserire il waypoint
     x_l,y_l = from_global_to_local_frame(ego_state, waypoints[closest_index][:2])

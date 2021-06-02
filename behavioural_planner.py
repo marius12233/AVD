@@ -201,17 +201,21 @@ class BehaviouralPlanner:
             goal_index = self.get_goal_index(waypoints, ego_state, closest_len, closest_index)
             
             try_to_stop_distance=self.try_to_stop(waypoints,closest_index,goal_index,ego_state)
-            
-            if try_to_stop_distance is not None:
-                goal_index=waypoint_add_ahead_distance(waypoints,closest_index,goal_index,try_to_stop_distance,ego_state)
+            traffic_light_found_distance = self.check_for_traffic_light(waypoints, closest_index, goal_index, ego_state)
+            if traffic_light_found_distance is  None:
+                traffic_light_found_distance=np.inf
+            if try_to_stop_distance is None:
+                try_to_stop_distance=np.inf
+            dist=min([try_to_stop_distance,traffic_light_found_distance])
+            if dist != np.inf:
+                goal_index=waypoint_add_ahead_distance(waypoints,closest_index,goal_index,dist,ego_state)
                 self._goal_index = goal_index
                 self._goal_state = waypoints[goal_index]
                 self._goal_state[2] = 0
-                print("Mi fermo tra: ",from_global_to_local_frame(ego_state,waypoints[goal_index][:2]))
-                self._state=DECELERATE_TO_STOP
+
             elif  self._traffic_light is not None:
                 color = self._traffic_light.get_color()
-                if  (color == GREEN or not self._traffic_light.is_next()) or (color == RED and not self._traffic_light.is_next() and len(self._opposites)==0):
+                if  (color == GREEN and self._traffic_light.is_next() ) or (color == RED and not self._traffic_light.is_next() and len(self._opposites)==0):
                     print("SEMAFORO CAMBIATO: ROSSO -> VERDE")
                     self._state = FOLLOW_LANE
             
@@ -490,9 +494,10 @@ class BehaviouralPlanner:
             lead_car_delta_vector = [lead_car_position[0] - ego_state[0], 
                                      lead_car_position[1] - ego_state[1]]
             lead_car_distance = np.linalg.norm(lead_car_delta_vector)
-            
+            if self._nearest_intersection and np.linalg.norm(np.array(self._nearest_intersection[:2]) - np.array(ego_state[:2]) )<=15:
+                self._follow_lead_vehicle_lookahead=6
             # In this case, the car is too far away.   
-            if lead_car_distance > self._follow_lead_vehicle_lookahead:
+            if lead_car_distance >  self._follow_lead_vehicle_lookahead:
                 return
             print("-----Lead Vehicle Distance:  ", lead_car_distance,"-------",self._follow_lead_vehicle)
             lead_car_delta_vector = np.divide(lead_car_delta_vector, 
@@ -517,7 +522,8 @@ class BehaviouralPlanner:
                                      lead_car_position[1] - ego_state[1]]
             lead_car_distance = np.linalg.norm(lead_car_delta_vector)
             
-            
+            if self._nearest_intersection and np.linalg.norm(np.array(self._nearest_intersection[:2]) - np.array(ego_state[:2]) )<=15:
+                self._follow_lead_vehicle_lookahead=6
             if lead_car_distance > self._follow_lead_vehicle_lookahead + 5:
                 self._follow_lead_vehicle = False
                 return
@@ -542,14 +548,20 @@ class BehaviouralPlanner:
         closest_ped_idx=None
         ego_rot_x = ego_orientation[0]
         ego_rot_y = ego_orientation[1]
-        ego_angle = math.atan2(ego_rot_y,ego_rot_x)+math.pi
+        
+        ego_angle = math.atan2(ego_rot_y,ego_rot_x)
+        if ego_angle<0:
+            ego_angle+=2*math.pi
         lookahead_dist=self._lookahead
         
         for i in range(len( pedestrian_position )):
-            pedestrian_angle = math.atan2(pedestrian_rot[i][1],pedestrian_rot[i][0])+math.pi
+            pedestrian_angle = math.atan2(pedestrian_rot[i][1],pedestrian_rot[i][0])
+            if pedestrian_angle<0:
+                pedestrian_angle+=2*math.pi
             
             local_pos=from_global_to_local_frame(ego_state,pedestrian_position[i])
-            if self._nearest_intersection and np.linalg.norm(np.array(self._nearest_intersection[:2]) - np.array(ego_state[:2]) )<=20:
+            if self._nearest_intersection and np.linalg.norm(np.array(self._nearest_intersection[:2]) - np.array(ego_state[:2]) )<=15:
+                print("Sto all'intersezione se m appizz")
                 lookahead_dist=6
             
             if local_pos[0]>0 and local_pos[0] <lookahead_dist and local_pos[1]>-5 and local_pos[1]<5 and pedestrian_angle < ego_angle-0.20 and pedestrian_angle < ego_angle-0.20:
