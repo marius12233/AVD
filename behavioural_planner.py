@@ -888,7 +888,7 @@ class BehaviouralPlanner:
             
             
             if local_pos[0] >= -6 and abs(local_pos[1])<5: #Se il veicolo considerato sta davanti a me
-                if (vehicle_angle < ego_angle + math.pi/4 and  vehicle_angle > ego_angle - math.pi/4):  
+                if (vehicle_angle < (ego_angle + math.pi/4)%(2*math.pi) and  (vehicle_angle + math.pi/4)%(2*math.pi)> ego_angle ):  
                     #E' un lead_car
                     lead_car = i
                 else:
