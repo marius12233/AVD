@@ -1336,10 +1336,10 @@ def exec_waypoint_nav_demo(args):
                 # Perform collision checking.
                 if(len(paths)>0):
                     collision_check_array=[ True ]*len(paths)
-                    #prob_coll_pedestrian=bp.check_for_pedestrian(ego_state,prob_obs["pedestrian"]["pos"],prob_obs["pedestrian"]["bounding_box"])
+                    prob_coll_pedestrian=bp.check_for_pedestrian(ego_state,prob_obs["pedestrian"]["pos"],prob_obs["pedestrian"]["bounding_box"])
                     prob_coll_vehicle=bp.check_for_vehicle(ego_state,prob_obs["vehicle"]["pos"],prob_obs["vehicle"]["bounding_box"])
                     #print("Prob coll. vehicle: ", prob_coll_vehicle)
-                    for bb in  prob_coll_vehicle:
+                    for bb in  prob_coll_vehicle + prob_coll_pedestrian:
                         cc = lp._collision_checker.collision_check(paths, [bb])
                         collision_check_array=list(np.array(cc) & np.array(collision_check_array))
 

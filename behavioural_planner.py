@@ -615,6 +615,14 @@ class BehaviouralPlanner:
 
         return prob_coll_vehicle
     
+    def check_for_pedestrian(self,ego_state, pedestrian_position,pedestrian_bb):
+        prob_coll_pedestrian=[]
+        for i in range(len( pedestrian_position )):
+            obs_local_pos=from_global_to_local_frame(ego_state,pedestrian_position[i])
+            if obs_local_pos[0]>0 and obs_local_pos[0] < 20 and obs_local_pos[1]<3 and obs_local_pos[1]>-3:
+                prob_coll_pedestrian.append(pedestrian_bb[i])
+        return prob_coll_pedestrian
+    
     def check_forward_closest_vehicle(self, ego_state, ego_orientation, vehicle_position, vehicle_rot):
         
         lead_car_idx=None
