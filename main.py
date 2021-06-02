@@ -1212,11 +1212,13 @@ def exec_waypoint_nav_demo(args):
                     
 
                     nearest_tl = tl_tracking.get_nearest_tl(ego_state)
+                    """
                     if nearest_tl is not None:
                         res_r, cluster_res_r = nearest_tl
                         traffic_light.update(res_r[0], res_r[1], cluster_res_r)
                     else:
                         clusters = tl_tracking.get_clusters()
+                    """
                         #print("Traffic light not found: Clusters: ", tl_tracking.get_clusters())
 
                     #if abs(xr) < 60 and abs(yr)<60:
@@ -1230,7 +1232,7 @@ def exec_waypoint_nav_demo(args):
                         visualize_point(map, int(res_r[0][0]), int(res_r[0][1]), zr, img_map, color=(238,130,238), r=10)
                         traffic_light._last_img_cropped = tl_right_detector.get_img_cropped()
                         traffic_light._last_mask_cropped = tl_right_detector._mask
-                        traffic_light.update(res_r[0], res_r[1], None)
+                        traffic_light.update(res_r[0], res_r[1], tl_tracking.get_clusters())
                         bp.set_traffic_light(traffic_light)
 
                     else: #Se non c'è la detection della camera destra vado con la centrale
@@ -1240,7 +1242,7 @@ def exec_waypoint_nav_demo(args):
                                 #print("RESULT: ", res)
                                 traffic_light._last_img_cropped = tl_detector.get_img_cropped()
                                 traffic_light._last_mask_cropped = tl_detector._mask
-                                traffic_light.update(res[0], res[1], None)
+                                traffic_light.update(res[0], res[1], tl_tracking.get_clusters())
                                 bp.set_traffic_light(traffic_light)
                 
                 elif vehicle_bbox_traffic_light is not None:
@@ -1250,7 +1252,7 @@ def exec_waypoint_nav_demo(args):
                        # print("RESULT: ", res)
                         traffic_light._last_img_cropped = tl_detector.get_img_cropped()
                         traffic_light._last_mask_cropped = tl_detector._mask
-                        traffic_light.update(res[0], res[1], None)
+                        traffic_light.update(res[0], res[1], tl_tracking.get_clusters())
                         bp.set_traffic_light(traffic_light)
                 
                 else:
