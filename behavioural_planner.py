@@ -3,7 +3,7 @@ from traffic_light import GREEN, RED, TrafficLight
 from utils import from_global_to_local_frame, from_local_to_global_frame
 import numpy as np
 import math
-from utils import obstacle_to_world, from_global_to_local_frame, waypoint_adder_ahead, waypoints_adder_v2, waypoint_add_ahead_distance#, turn_to_intersection
+from utils import obstacle_to_world,from_global_to_local_frame, waypoint_add_ahead_distance
 from queue import PriorityQueue
 # State machine states
 FOLLOW_LANE = 0
@@ -171,21 +171,41 @@ class BehaviouralPlanner:
                         #print("TL Waypoint: ", from_global_to_local_frame(ego_state, self._goal_state[:2]))
                         self._state = DECELERATE_TO_STOP                   
             
-            try_to_stop_distance=self.try_to_stop(waypoints,closest_index,goal_index,ego_state)
+            try_to_stop_distance=self.try_to_stop(ego_state)
             
             
             if traffic_light_found_distance is  None:
                 traffic_light_found_distance=np.inf
-            if try_to_stop_distance is  None:
+            if try_to_stop_distance is None:
                 try_to_stop_distance=np.inf
             
-            dist=min([try_to_stop_distance,traffic_light_found_distance])
-            if dist != np.inf:
-                goal_index=waypoint_add_ahead_distance(waypoints,closest_index,goal_index,dist,ego_state)
-                self._goal_index = goal_index
-                self._goal_state = waypoints[goal_index]
-                self._goal_state[2] = 0
-                self._state = DECELERATE_TO_STOP
+            if try_to_stop_distance == np.inf and  traffic_light_found_distance==np.inf:
+                return
+            
+            elif try_to_stop_distance < traffic_light_found_distance:
+                
+                if self._closest_pedestrian["count"]==0 :
+                    print("Nuovo waypoint")
+                    print("Start distance ", try_to_stop_distance)
+                    goal_index=waypoint_add_ahead_distance(waypoints,closest_index,goal_index,try_to_stop_distance,ego_state)
+                    self._forward_pedestrian[self._closest_pedestrian["index"]]=goal_index
+                    
+                elif self._forward_pedestrian.get(self._closest_pedestrian["index"]) is not None and from_global_to_local_frame(ego_state,waypoints[self._forward_pedestrian[self._closest_pedestrian["index"]]][:2])[0] <=0:
+                    print("Troppo vicino")
+                    print(ego_state)
+                    goal_index=waypoint_add_ahead_distance(waypoints,closest_index,goal_index,try_to_stop_distance,ego_state)
+                    self._forward_pedestrian[self._closest_pedestrian["index"]]=goal_index
+                else :
+                    print("Uso il vecchio")
+                    goal_index=self._forward_pedestrian[self._closest_pedestrian["index"]]
+
+            else:
+                goal_index=waypoint_add_ahead_distance(waypoints,closest_index,goal_index,traffic_light_found_distance,ego_state)    
+                
+            self._goal_index = goal_index
+            self._goal_state = waypoints[goal_index]
+            self._goal_state[2] = 0
+            self._state = DECELERATE_TO_STOP
 
             
 
@@ -201,19 +221,42 @@ class BehaviouralPlanner:
             closest_len, closest_index = get_closest_index(waypoints, ego_state)
             goal_index = self.get_goal_index(waypoints, ego_state, closest_len, closest_index)
             
-            try_to_stop_distance=self.try_to_stop(waypoints,closest_index,goal_index,ego_state)
+            try_to_stop_distance=self.try_to_stop(ego_state)
             traffic_light_found_distance = self.check_for_traffic_light(waypoints, closest_index, goal_index, ego_state)
             if traffic_light_found_distance is  None:
                 traffic_light_found_distance=np.inf
             if try_to_stop_distance is None:
                 try_to_stop_distance=np.inf
-            dist=min([try_to_stop_distance,traffic_light_found_distance])
-            if dist != np.inf:
-                goal_index=waypoint_add_ahead_distance(waypoints,closest_index,goal_index,dist,ego_state)
+            
+            
+            if try_to_stop_distance < traffic_light_found_distance:
+                
+                if self._closest_pedestrian["count"]==0 :
+                    print("----Nuovo Waipoint---")
+                    print("Start distance ", try_to_stop_distance)
+                    goal_index=waypoint_add_ahead_distance(waypoints,closest_index,goal_index,try_to_stop_distance,ego_state)
+                    self._forward_pedestrian[self._closest_pedestrian["index"]]=goal_index
+                    
+                elif self._forward_pedestrian.get(self._closest_pedestrian["index"]) is not None and  from_global_to_local_frame(ego_state,waypoints[self._forward_pedestrian[self._closest_pedestrian["index"]]][:2])[0] <=0:
+                    print("----Prima della mia pos---")
+                    
+                    goal_index=waypoint_add_ahead_distance(waypoints,closest_index,goal_index,try_to_stop_distance,ego_state)
+                    self._forward_pedestrian[self._closest_pedestrian["index"]]=goal_index
+                else:
+                    print("Uso il vecchio")
+                    goal_index=self._forward_pedestrian[self._closest_pedestrian["index"]]
                 self._goal_index = goal_index
                 self._goal_state = waypoints[goal_index]
                 self._goal_state[2] = 0
-
+                self._state = DECELERATE_TO_STOP
+            
+            elif try_to_stop_distance >= traffic_light_found_distance and traffic_light_found_distance!=np.inf:
+                goal_index=waypoint_add_ahead_distance(waypoints,closest_index,goal_index,traffic_light_found_distance,ego_state)    
+                self._goal_index = goal_index
+                self._goal_state = waypoints[goal_index]
+                self._goal_state[2] = 0
+                self._state = DECELERATE_TO_STOP
+            
             elif  self._traffic_light is not None:
                 color = self._traffic_light.get_color()
                 if  (color == GREEN and self._traffic_light.is_next() ) or (color == RED and not self._traffic_light.is_next() and len(self._opposites)==0):
@@ -242,7 +285,7 @@ class BehaviouralPlanner:
                     self._state = FOLLOW_LANE
             closest_len, closest_index = get_closest_index(waypoints, ego_state)
             goal_index = self.get_goal_index(waypoints, ego_state, closest_len, closest_index)
-            try_to_stop_distance=self.try_to_stop(waypoints,closest_index,goal_index,ego_state)
+            try_to_stop_distance=self.try_to_stop(ego_state)
             if try_to_stop_distance is not None:
                 self._state=STAY_STOPPED
             elif tf_light:
@@ -276,16 +319,27 @@ class BehaviouralPlanner:
                     self._overtaking_vehicle = None #L'ho sorpassato
                     self._state = FOLLOW_LANE
             
-            try_to_stop_distance=self.try_to_stop(waypoints,closest_index,goal_index,ego_state)
+            try_to_stop_distance=self.try_to_stop(ego_state)
             
             if try_to_stop_distance is not None:
-                goal_index=waypoint_add_ahead_distance(waypoints,closest_index,goal_index,try_to_stop_distance,ego_state)
+                
+                if self._closest_pedestrian["count"]==0 :
+                    print("----Nuovo Waipoint---")
+                    goal_index=waypoint_add_ahead_distance(waypoints,closest_index,goal_index,try_to_stop_distance,ego_state)
+                    self._forward_pedestrian[self._closest_pedestrian["index"]]=goal_index
+                    
+                elif self._forward_pedestrian.get(self._closest_pedestrian["index"]) is not None and from_global_to_local_frame(ego_state,waypoints[self._forward_pedestrian[self._closest_pedestrian["index"]]][:2])[0] <=0:
+                    print("----Troppo vicino---")
+                    goal_index=waypoint_add_ahead_distance(waypoints,closest_index,goal_index,try_to_stop_distance,ego_state)
+                    self._forward_pedestrian[self._closest_pedestrian["index"]]=goal_index
+                else:
+                    print("----Uso il vecchio---")
+                    goal_index=self._forward_pedestrian[self._closest_pedestrian["index"]]
+
                 self._goal_index = goal_index
                 self._goal_state = waypoints[goal_index]
                 self._goal_state[2] = 0
-                self._state=DECELERATE_TO_STOP
-
-
+                self._state = DECELERATE_TO_STOP
                 
 
         else:
@@ -564,7 +618,11 @@ class BehaviouralPlanner:
         ego_angle = math.atan2(ego_rot_y,ego_rot_x)
         if ego_angle<0:
             ego_angle+=2*math.pi
-        lookahead_dist=self._lookahead
+        if ego_angle>math.pi:
+            offset=-math.pi
+        else :
+            offset=+math.pi
+        lookahead_dist=16
         
         for i in range(len( pedestrian_position )):
             pedestrian_angle = math.atan2(pedestrian_rot[i][1],pedestrian_rot[i][0])
@@ -576,8 +634,12 @@ class BehaviouralPlanner:
                 
                 lookahead_dist=6
             
-            if local_pos[0]>0 and local_pos[0] <lookahead_dist and local_pos[1]>-5 and local_pos[1]<5 and ( (pedestrian_angle < ego_angle-0.20 and pedestrian_angle > ego_angle + 0.20 ) or (pedestrian_angle > ego_angle+ np.pi-0.20 and pedestrian_angle < ego_angle +np.pi + 0.20)):
+            if local_pos[0]>0 and local_pos[0] <lookahead_dist and local_pos[1]>-5 and local_pos[1]<5 and ( ((pedestrian_angle + 0.20) % (2*math.pi) < ego_angle or pedestrian_angle > (ego_angle + 0.20) % (2*math.pi)) and(  (pedestrian_angle +0.20) % (2*math.pi)  < ego_angle+offset or pedestrian_angle > (ego_angle +offset + 0.20) % (2*math.pi) )):
+                
                 if local_pos[0] < local_pos_closest:
+                    print("---------")
+                    print("Sono la macchina e vado ",ego_angle)
+                    print("Sono {} e vado {}".format(i,pedestrian_angle))
                     local_pos_closest=local_pos[0]
                     closest_ped_idx=i
                     
@@ -602,7 +664,7 @@ class BehaviouralPlanner:
         print("Closest pedestrian: ", self._closest_pedestrian)
         return
     
-    def check_for_vehicle(self,ego_state, vehicle_position,vehicle_bb, vehicle_speed, vehicle_ori, vehicle_bbox_extend):
+    def check_for_vehicle(self,ego_state, vehicle_position,vehicle_bb):
         prob_coll_vehicle=[]
         for i in range(len( vehicle_position )):
             obs_local_pos=from_global_to_local_frame(ego_state,vehicle_position[i])
@@ -610,6 +672,7 @@ class BehaviouralPlanner:
                 prob_coll_vehicle.append(vehicle_bb[i])
 
             if self._overtaking_vehicle is not None and i==self._overtaking_vehicle[1]:
+                prob_coll_vehicle.append(vehicle_bb[i])
                 #Portare il veicolo + avanti
                 #Prendere la locazione
                 obs_local_pos=from_global_to_local_frame(ego_state,vehicle_position[i])
@@ -622,14 +685,13 @@ class BehaviouralPlanner:
                 new_bbox = obstacle_to_world(global_pos, vehicle_bbox_extend[i], vehicle_ori[i])
                 prob_coll_vehicle.append(new_bbox)
 
-
         return prob_coll_vehicle
     
     def check_for_pedestrian(self,ego_state, pedestrian_position,pedestrian_bb):
         prob_coll_pedestrian=[]
         for i in range(len( pedestrian_position )):
             obs_local_pos=from_global_to_local_frame(ego_state,pedestrian_position[i])
-            if obs_local_pos[0]>0 and obs_local_pos[0] < 20 and obs_local_pos[1]<3 and obs_local_pos[1]>-3:
+            if obs_local_pos[0]>0 and obs_local_pos[0] < 16 and obs_local_pos[1]<3 and obs_local_pos[1]>-3:
                 prob_coll_pedestrian.append(pedestrian_bb[i])
         return prob_coll_pedestrian
     
@@ -639,20 +701,20 @@ class BehaviouralPlanner:
         lead_car_local_pos=None
         ego_rot_x = ego_orientation[0]
         ego_rot_y = ego_orientation[1]
-        ego_angle = math.atan2(ego_rot_y,ego_rot_x)  + math.pi
-        #if ego_angle < 0:
-        #    ego_angle+=2*math.pi
+        ego_angle = math.atan2(ego_rot_y,ego_rot_x) 
+        if ego_angle < 0:
+            ego_angle+=2*math.pi
 
         
         for i in range(len(vehicle_position)):
-            vehicle_angle = math.atan2(vehicle_rot[i][1],vehicle_rot[i][0]) + math.pi
-            #if vehicle_angle < 0:
-            #    vehicle_angle+=2*math.pi
+            vehicle_angle = math.atan2(vehicle_rot[i][1],vehicle_rot[i][0]) 
+            if vehicle_angle < 0:
+                vehicle_angle+=2*math.pi
             local_pos=from_global_to_local_frame(ego_state,vehicle_position[i])
             
               
             if local_pos[0] >= 0: 
-                if (vehicle_angle < ego_angle + math.pi/4 and  vehicle_angle > ego_angle - math.pi/4):  
+                if (vehicle_angle < (ego_angle + math.pi/4 ) %(2*math.pi) and  (vehicle_angle + math.pi/4) % (2*math.pi)> ego_angle ):  
                     if (lead_car_idx is None or local_pos[0]<lead_car_local_pos[0]) and local_pos[1]>-5 and local_pos[1]<5 :
                         lead_car_idx=i
                         lead_car_local_pos=local_pos
@@ -810,9 +872,9 @@ class BehaviouralPlanner:
 
         ego_rot_x = ego_orientation[0]
         ego_rot_y = ego_orientation[1]
-        ego_angle = math.atan2(ego_rot_y,ego_rot_x) + math.pi
-        #if ego_angle < 0:
-        #    ego_angle+=2*math.pi
+        ego_angle = math.atan2(ego_rot_y,ego_rot_x) 
+        if ego_angle < 0:
+            ego_angle+=2*math.pi
         
         #Se ci sono solo lead cars allora potrei sorpassare
         lead_cars = []
@@ -823,9 +885,9 @@ class BehaviouralPlanner:
             opposite_car = None
 
             #Controllare se il veicolo sta di faccia
-            vehicle_angle = math.atan2(vehicle_rot[i][1],vehicle_rot[i][0]) + math.pi#+ math.pi
-            #if vehicle_angle < 0:
-            #    vehicle_angle+=2*math.pi
+            vehicle_angle = math.atan2(vehicle_rot[i][1],vehicle_rot[i][0]) #+ math.pi
+            if vehicle_angle < 0:
+                vehicle_angle+=2*math.pi
 
             local_pos=from_global_to_local_frame(ego_state,vehicle_positions[i][:2])
 
@@ -836,7 +898,7 @@ class BehaviouralPlanner:
             
             
             if local_pos[0] >= -6 and abs(local_pos[1])<5: #Se il veicolo considerato sta davanti a me
-                if (vehicle_angle < ego_angle + math.pi/4 and  vehicle_angle > ego_angle - math.pi/4):  
+                if (vehicle_angle < (ego_angle + math.pi/4)%(2*math.pi) and  (vehicle_angle + math.pi/4)%(2*math.pi)> ego_angle ):  
                     #E' un lead_car
                     lead_car = i
                 else:
@@ -926,7 +988,7 @@ class BehaviouralPlanner:
                 self._may_overtake = True
                 return True
             else:
-                print("CANNOT OVERTAKE: Lead is decelerating")
+                print("CANNOT OVERATE: Lead is decelerating")
                 self._may_overtake = False
                 return False
         else:
@@ -939,19 +1001,12 @@ class BehaviouralPlanner:
    
 
                     
-    def try_to_stop(self,waypoints,closest_index,goal_index,ego_state):
+    def try_to_stop(self,ego_state):
         if self._closest_pedestrian is None:
-            self._forward_pedestrian = {}
             return None
-        closest_pedestrian_idx = self._closest_pedestrian["index"] 
 
-        if self._forward_pedestrian.get(closest_pedestrian_idx) is None:
-            closest_pedestrian_local = from_global_to_local_frame(ego_state, self._closest_pedestrian["pos"])
-            print("Sto a d:{} dal pedone".format(closest_pedestrian_local[0]))
-
-            self._forward_pedestrian[closest_pedestrian_idx]=True
-            return closest_pedestrian_local[0]-3
-        return None
+        closest_pedestrian_local = from_global_to_local_frame(ego_state, self._closest_pedestrian["pos"])
+        return closest_pedestrian_local[0]-3
         
                     
 

@@ -3,7 +3,6 @@ from traffic_light_detection_module.predict import *
 import cv2
 import numpy as np
 from carla.image_converter import labels_to_array
-from utils import circle_detection
 
 def load_model():
     config = get_config(os.path.join("traffic_light_detection_module", "config.json"))
@@ -29,7 +28,7 @@ class TrafficLightDetector:
     
     def get_img(self):
         return self.__img
-        
+
     def find_traffic_light(self, img):
         if img is None:
             return None

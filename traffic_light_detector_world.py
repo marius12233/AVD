@@ -9,7 +9,6 @@ from math import cos, sin, pi,tan
 import os
 import sys
 from traffic_light_detector import TrafficLightDetector, get_model
-from utils import circle_detection
 
 sys.path.append(os.path.abspath(sys.path[0] + '/..'))
 from traffic_sign_recognition import TrafficLightRecognition

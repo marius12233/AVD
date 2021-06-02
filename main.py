@@ -43,10 +43,10 @@ from lane_detection_and_following import LaneFollowing
 ###############################################################################
 # CONFIGURABLE PARAMENTERS DURING EXAM
 ###############################################################################
-PLAYER_START_INDEX = 120#19#112#19#24#8#120#8#120#89##124#133#13#6#22#6#135#135#141#66 150         #  spawn index for player
-DESTINATION_INDEX =   150#   143 #128#143#90#139#63 #139#63#65#55#65#15#55#15#53#53#90#18        # Setting a Destination HERE
-NUM_PEDESTRIANS        = 0#150      # total number of pedestrians to spawn
-NUM_VEHICLES           = 50#60      # total number of vehicles to spawn
+PLAYER_START_INDEX = 24#19#24#8#120#8#120#89##124#133#13#6#22#6#135#135#141#66 150         #  spawn index for player
+DESTINATION_INDEX =  90#143#90#139#63 #139#63#65#55#65#15#55#15#53#53#90#18        # Setting a Destination HERE
+NUM_PEDESTRIANS        = 200      # total number of pedestrians to spawn
+NUM_VEHICLES           = 50      # total number of vehicles to spawn
 SEED_PEDESTRIANS       = 0      # seed for pedestrian spawn randomizer
 SEED_VEHICLES          = 0     # seed for vehicle spawn randomizer
 ###############################################################################àà
@@ -100,7 +100,7 @@ PATH_SELECT_WEIGHT     = 10
 A_MAX                  = 2.5              # m/s^2
 SLOW_SPEED             = 2.0              # m/s
 STOP_LINE_BUFFER       = 3.5              # m
-LEAD_VEHICLE_LOOKAHEAD = 16#16#20.0             # m
+LEAD_VEHICLE_LOOKAHEAD = 20.0             # m
 LP_FREQUENCY_DIVISOR   = 2                # Frequency divisor to make the 
                                           # local planner operate at a lower
                                           # frequency than the controller
@@ -1053,6 +1053,8 @@ def exec_waypoint_nav_demo(args):
                     prob_obs["vehicle"]["rot"].append([agent.vehicle.transform.orientation.x,agent.vehicle.transform.orientation.y])
                     prob_obs["vehicle"]["ori"].append([agent.vehicle.transform.rotation.yaw,agent.vehicle.transform.rotation.pitch, agent.vehicle.transform.rotation.roll ] )
                     prob_obs["vehicle"]["bounding_box_extent"].append(agent.vehicle.bounding_box.extent)
+                    
+                    
             
                 
                 if agent.HasField('pedestrian'):
@@ -1239,12 +1241,12 @@ def exec_waypoint_nav_demo(args):
                             #print("Clusters: ", tl_tracking.get_clusters())
                             if res is not None:
                                 #print("RESULT: ", res)
-
                                 traffic_light._last_img_cropped = tl_detector.get_img_cropped()
                                 traffic_light._last_mask_cropped = tl_detector._mask
                                 traffic_light.set_complete_image(camera_data)
                                 traffic_light.set_bbox(tl_detector.get_enlarged_bbox())
                                 traffic_light.set_seg_img(labels_to_array(segmentation_data))
+
                                 bp.set_traffic_light(traffic_light)
                 
                 elif vehicle_bbox_traffic_light is not None:
@@ -1257,6 +1259,7 @@ def exec_waypoint_nav_demo(args):
                         traffic_light.set_complete_image(camera_data)
                         traffic_light.set_bbox(tl_detector.get_enlarged_bbox())
                         traffic_light.set_seg_img(labels_to_array(segmentation_data))
+
                         bp.set_traffic_light(traffic_light)
                 
                 else:
@@ -1323,8 +1326,8 @@ def exec_waypoint_nav_demo(args):
                 cv2.waitKey(10)
 
                 if  bp.get_follow_lead_vehicle() and not may_overtaking:
-                    print("----Follow Lead----")
-                    print("Idx Lead: ", closest_vehicle_index)
+                    #print("----Follow Lead----")
+                    #print("Idx Lead: ", closest_vehicle_index)
                     #
                     lead_car_state=[prob_obs["vehicle"]["pos"][closest_vehicle_index][0], prob_obs["vehicle"]["pos"][closest_vehicle_index][1], prob_obs["vehicle"]["speed"][closest_vehicle_index]]
                     #
@@ -1334,6 +1337,7 @@ def exec_waypoint_nav_demo(args):
                     prob_obs["vehicle"]["speed"].pop(closest_vehicle_index)
                     prob_obs["vehicle"]["ori"].pop(closest_vehicle_index)
                     prob_obs["vehicle"]["bounding_box_extent"].pop(closest_vehicle_index)
+
                 else:
                     lead_car_state=None
                 # Compute the goal state set from the behavioural planner's computed goal state.
@@ -1348,12 +1352,12 @@ def exec_waypoint_nav_demo(args):
                 # Perform collision checking.
                 if(len(paths)>0):
                     collision_check_array=[ True ]*len(paths)
-                    #prob_coll_pedestrian=bp.check_for_pedestrian(ego_state,prob_obs["pedestrian"]["pos"],prob_obs["pedestrian"]["bounding_box"])
-                    prob_coll_vehicle=bp.check_for_vehicle(ego_state,prob_obs["vehicle"]["pos"],prob_obs["vehicle"]["bounding_box"], prob_obs["vehicle"]["speed"],prob_obs["vehicle"]["ori"], prob_obs["vehicle"]["bounding_box_extent"])                    #print("Prob coll. vehicle: ", prob_coll_vehicle)
-                    for bb in  prob_coll_vehicle:
+                    prob_coll_pedestrian=bp.check_for_pedestrian(ego_state,prob_obs["pedestrian"]["pos"],prob_obs["pedestrian"]["bounding_box"])
+                    prob_coll_vehicle=bp.check_for_vehicle(ego_state,prob_obs["vehicle"]["pos"],prob_obs["vehicle"]["bounding_box"])
+                    #print("Prob coll. vehicle: ", prob_coll_vehicle)
+                    for bb in  prob_coll_vehicle+ prob_coll_pedestrian:
                         cc = lp._collision_checker.collision_check(paths, [bb])
                         collision_check_array=list(np.array(cc) & np.array(collision_check_array))
-
 
                     if sum(collision_check_array)>=2:
                         if bp._state == behavioural_planner.OVERTAKING:
