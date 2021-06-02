@@ -43,8 +43,8 @@ from lane_detection_and_following import LaneFollowing
 ###############################################################################
 # CONFIGURABLE PARAMENTERS DURING EXAM
 ###############################################################################
-PLAYER_START_INDEX = 19#112#19#24#8#120#8#120#89##124#133#13#6#22#6#135#135#141#66 150         #  spawn index for player
-DESTINATION_INDEX =  143#128#143#90#139#63 #139#63#65#55#65#15#55#15#53#53#90#18        # Setting a Destination HERE
+PLAYER_START_INDEX = 112#19#24#8#120#8#120#89##124#133#13#6#22#6#135#135#141#66 150         #  spawn index for player
+DESTINATION_INDEX =  128#143#90#139#63 #139#63#65#55#65#15#55#15#53#53#90#18        # Setting a Destination HERE
 NUM_PEDESTRIANS        = 150      # total number of pedestrians to spawn
 NUM_VEHICLES           = 60      # total number of vehicles to spawn
 SEED_PEDESTRIANS       = 0      # seed for pedestrian spawn randomizer
@@ -1212,13 +1212,11 @@ def exec_waypoint_nav_demo(args):
                     
 
                     nearest_tl = tl_tracking.get_nearest_tl(ego_state)
-                    """
                     if nearest_tl is not None:
                         res_r, cluster_res_r = nearest_tl
                         traffic_light.update(res_r[0], res_r[1], cluster_res_r)
                     else:
                         clusters = tl_tracking.get_clusters()
-                    """
                         #print("Traffic light not found: Clusters: ", tl_tracking.get_clusters())
 
                     #if abs(xr) < 60 and abs(yr)<60:
@@ -1227,14 +1225,10 @@ def exec_waypoint_nav_demo(args):
 
                 if vehicle_bbox_traffic_light_r is not None:
                     if res_r is not None:
-                        print("Result of tracking si done!")
-                        #cv2.imshow("img mask ")
                         visualize_point(map, int(res_r[0][0]), int(res_r[0][1]), zr, img_map, color=(238,130,238), r=10)
                         traffic_light._last_img_cropped = tl_right_detector.get_img_cropped()
                         traffic_light._last_mask_cropped = tl_right_detector._mask
-                        traffic_light.update(res_r[0], res_r[1], tl_tracking.get_clusters())
                         bp.set_traffic_light(traffic_light)
-
                     else: #Se non c'è la detection della camera destra vado con la centrale
                         if vehicle_bbox_traffic_light is not None:
                             #print("Clusters: ", tl_tracking.get_clusters())
@@ -1242,7 +1236,6 @@ def exec_waypoint_nav_demo(args):
                                 #print("RESULT: ", res)
                                 traffic_light._last_img_cropped = tl_detector.get_img_cropped()
                                 traffic_light._last_mask_cropped = tl_detector._mask
-                                traffic_light.update(res[0], res[1], tl_tracking.get_clusters())
                                 bp.set_traffic_light(traffic_light)
                 
                 elif vehicle_bbox_traffic_light is not None:
@@ -1252,7 +1245,6 @@ def exec_waypoint_nav_demo(args):
                        # print("RESULT: ", res)
                         traffic_light._last_img_cropped = tl_detector.get_img_cropped()
                         traffic_light._last_mask_cropped = tl_detector._mask
-                        traffic_light.update(res[0], res[1], tl_tracking.get_clusters())
                         bp.set_traffic_light(traffic_light)
                 
                 else:
@@ -1262,7 +1254,12 @@ def exec_waypoint_nav_demo(args):
                     traffic_light.no_traffic_light_detection(ego_state)
                     #bp._traffic_light = traffic_light
 
-
+                kf_pos = tl_tracking.get_kf_pos()
+                if not kf_pos is None:
+                    #pass
+                    print("KF POS: ", kf_pos)
+                    
+                    visualize_point(map, int(kf_pos[0]), int(kf_pos[1]), 1, img_map, color=(0,0,0), r=5)
                 
                 ###################################################################################
 
@@ -1336,18 +1333,18 @@ def exec_waypoint_nav_demo(args):
                 # Perform collision checking.
                 if(len(paths)>0):
                     collision_check_array=[ True ]*len(paths)
-                    prob_coll_pedestrian=bp.check_for_pedestrian(ego_state,prob_obs["pedestrian"]["pos"],prob_obs["pedestrian"]["bounding_box"])
+                    #prob_coll_pedestrian=bp.check_for_pedestrian(ego_state,prob_obs["pedestrian"]["pos"],prob_obs["pedestrian"]["bounding_box"])
                     prob_coll_vehicle=bp.check_for_vehicle(ego_state,prob_obs["vehicle"]["pos"],prob_obs["vehicle"]["bounding_box"])
                     #print("Prob coll. vehicle: ", prob_coll_vehicle)
-                    for bb in  prob_coll_vehicle + prob_coll_pedestrian:
+                    for bb in  prob_coll_vehicle:
                         cc = lp._collision_checker.collision_check(paths, [bb])
                         collision_check_array=list(np.array(cc) & np.array(collision_check_array))
 
-                    if sum(collision_check_array)>=2:
-                        if bp._state == behavioural_planner.OVERTAKING:
-                            collision_check_array[0]=False #TODO: avoid this
-                        elif bp._state == behavioural_planner.FOLLOW_LANE:
-                            collision_check_array[-1]=False
+                    #if bp._state == behavioural_planner.OVERTAKING: #Se sto ancora sorpassando togli le ultime 3:
+
+                    #    collision_check_array[-1]=False #TODO: avoid this
+                    #    collision_check_array[-2]=False #TODO: avoid this
+                    #    collision_check_array[-3]=False #TODO: avoid this
                     #collision_check_array[-2]=False
                 # Compute the best local path.
                 best_index = lp._collision_checker.select_best_path_index(paths, collision_check_array, bp._goal_state)
