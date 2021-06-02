@@ -147,7 +147,7 @@ class TrafficLight:
                 cv2.waitKey(10)
                 color_cv = traffic_color_detection(res)
                 print("Color in no measure: ", color_cv)
-                if color_cv and color_cv != self._color and (stopped==2 or stopped==1):
+                if color_cv is not None and color_cv != self._color and (stopped==2 or stopped==1):
                     self._color = color_cv
                     self._changed_color = True
                     print("Color in no measure: ", color_cv)
