@@ -629,9 +629,9 @@ class BehaviouralPlanner:
         lead_car_local_pos=None
         ego_rot_x = ego_orientation[0]
         ego_rot_y = ego_orientation[1]
-        ego_angle = math.atan2(ego_rot_y,ego_rot_x) + math.pi
-        #if ego_angle < 0:
-        #    ego_angle+=2*math.pi
+        ego_angle = math.atan2(ego_rot_y,ego_rot_x) #+ math.pi
+        if ego_angle < 0:
+            ego_angle+=2*math.pi
 
         
         for i in range(len(vehicle_position)):
@@ -813,9 +813,9 @@ class BehaviouralPlanner:
             opposite_car = None
 
             #Controllare se il veicolo sta di faccia
-            vehicle_angle = math.atan2(vehicle_rot[i][1],vehicle_rot[i][0]) + math.pi
-            #if vehicle_angle < 0:
-            #    vehicle_angle+=2*math.pi
+            vehicle_angle = math.atan2(vehicle_rot[i][1],vehicle_rot[i][0]) #+ math.pi
+            if vehicle_angle < 0:
+                vehicle_angle+=2*math.pi
 
             local_pos=from_global_to_local_frame(ego_state,vehicle_positions[i][:2])
 
