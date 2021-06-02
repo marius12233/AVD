@@ -576,7 +576,7 @@ class BehaviouralPlanner:
                 
                 lookahead_dist=6
             
-            if local_pos[0]>0 and local_pos[0] <lookahead_dist and local_pos[1]>-5 and local_pos[1]<5 and pedestrian_angle < ego_angle-0.20 and pedestrian_angle > ego_angle + 0.20:
+            if local_pos[0]>0 and local_pos[0] <lookahead_dist and local_pos[1]>-5 and local_pos[1]<5 and ( (pedestrian_angle < ego_angle-0.20 and pedestrian_angle > ego_angle + 0.20 ) or (pedestrian_angle > ego_angle+ np.pi-0.20 and pedestrian_angle < ego_angle +np.pi + 0.20)):
                 if local_pos[0] < local_pos_closest:
                     local_pos_closest=local_pos[0]
                     closest_ped_idx=i
@@ -629,15 +629,15 @@ class BehaviouralPlanner:
         lead_car_local_pos=None
         ego_rot_x = ego_orientation[0]
         ego_rot_y = ego_orientation[1]
-        ego_angle = math.atan2(ego_rot_y,ego_rot_x) #+ math.pi
+        ego_angle = math.atan2(ego_rot_y,ego_rot_x) 
         if ego_angle < 0:
             ego_angle+=2*math.pi
 
         
         for i in range(len(vehicle_position)):
-            vehicle_angle = math.atan2(vehicle_rot[i][1],vehicle_rot[i][0]) + math.pi
-            #if vehicle_angle < 0:
-            #    vehicle_angle+=2*math.pi
+            vehicle_angle = math.atan2(vehicle_rot[i][1],vehicle_rot[i][0]) 
+            if vehicle_angle < 0:
+                vehicle_angle+=2*math.pi
             local_pos=from_global_to_local_frame(ego_state,vehicle_position[i])
             
               
@@ -800,9 +800,9 @@ class BehaviouralPlanner:
 
         ego_rot_x = ego_orientation[0]
         ego_rot_y = ego_orientation[1]
-        ego_angle = math.atan2(ego_rot_y,ego_rot_x) + math.pi
-        #if ego_angle < 0:
-        #    ego_angle+=2*math.pi
+        ego_angle = math.atan2(ego_rot_y,ego_rot_x) 
+        if ego_angle < 0:
+            ego_angle+=2*math.pi
         
         #Se ci sono solo lead cars allora potrei sorpassare
         lead_cars = []
