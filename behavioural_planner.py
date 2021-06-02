@@ -181,15 +181,24 @@ class BehaviouralPlanner:
             
             if try_to_stop_distance == np.inf and  traffic_light_found_distance==np.inf:
                 return
+            
             elif try_to_stop_distance < traffic_light_found_distance:
-                if self._closest_pedestrian["count"]==0:
-
+                
+                if self._closest_pedestrian["count"]==0 :
+                    print("Nuovo waypoint")
+                    print("Start distance ", try_to_stop_distance)
                     goal_index=waypoint_add_ahead_distance(waypoints,closest_index,goal_index,try_to_stop_distance,ego_state)
                     self._forward_pedestrian[self._closest_pedestrian["index"]]=goal_index
                     
-                else:
+                elif self._forward_pedestrian.get(self._closest_pedestrian["index"]) is not None and from_global_to_local_frame(ego_state,waypoints[self._forward_pedestrian[self._closest_pedestrian["index"]]][:2])[0] <=0:
+                    print("Troppo vicino")
+                    print(ego_state)
+                    goal_index=waypoint_add_ahead_distance(waypoints,closest_index,goal_index,try_to_stop_distance,ego_state)
+                    self._forward_pedestrian[self._closest_pedestrian["index"]]=goal_index
+                else :
+                    print("Uso il vecchio")
                     goal_index=self._forward_pedestrian[self._closest_pedestrian["index"]]
-                
+
             else:
                 goal_index=waypoint_add_ahead_distance(waypoints,closest_index,goal_index,traffic_light_found_distance,ego_state)    
                 
@@ -221,11 +230,20 @@ class BehaviouralPlanner:
             
             
             if try_to_stop_distance < traffic_light_found_distance:
-                if self._closest_pedestrian["count"]==0:
-
+                
+                if self._closest_pedestrian["count"]==0 :
+                    print("----Nuovo Waipoint---")
+                    print("Start distance ", try_to_stop_distance)
+                    goal_index=waypoint_add_ahead_distance(waypoints,closest_index,goal_index,try_to_stop_distance,ego_state)
+                    self._forward_pedestrian[self._closest_pedestrian["index"]]=goal_index
+                    
+                elif self._forward_pedestrian.get(self._closest_pedestrian["index"]) is not None and  from_global_to_local_frame(ego_state,waypoints[self._forward_pedestrian[self._closest_pedestrian["index"]]][:2])[0] <=0:
+                    print("----Prima della mia pos---")
+                    
                     goal_index=waypoint_add_ahead_distance(waypoints,closest_index,goal_index,try_to_stop_distance,ego_state)
                     self._forward_pedestrian[self._closest_pedestrian["index"]]=goal_index
                 else:
+                    print("Uso il vecchio")
                     goal_index=self._forward_pedestrian[self._closest_pedestrian["index"]]
                 self._goal_index = goal_index
                 self._goal_state = waypoints[goal_index]
@@ -304,11 +322,18 @@ class BehaviouralPlanner:
             try_to_stop_distance=self.try_to_stop(ego_state)
             
             if try_to_stop_distance is not None:
-                if self._closest_pedestrian["count"]==0:
-    
+                
+                if self._closest_pedestrian["count"]==0 :
+                    print("----Nuovo Waipoint---")
+                    goal_index=waypoint_add_ahead_distance(waypoints,closest_index,goal_index,try_to_stop_distance,ego_state)
+                    self._forward_pedestrian[self._closest_pedestrian["index"]]=goal_index
+                    
+                elif self._forward_pedestrian.get(self._closest_pedestrian["index"]) is not None and from_global_to_local_frame(ego_state,waypoints[self._forward_pedestrian[self._closest_pedestrian["index"]]][:2])[0] <=0:
+                    print("----Troppo vicino---")
                     goal_index=waypoint_add_ahead_distance(waypoints,closest_index,goal_index,try_to_stop_distance,ego_state)
                     self._forward_pedestrian[self._closest_pedestrian["index"]]=goal_index
                 else:
+                    print("----Uso il vecchio---")
                     goal_index=self._forward_pedestrian[self._closest_pedestrian["index"]]
 
                 self._goal_index = goal_index
@@ -597,7 +622,7 @@ class BehaviouralPlanner:
             offset=-math.pi
         else :
             offset=+math.pi
-        lookahead_dist=self._lookahead
+        lookahead_dist=16
         
         for i in range(len( pedestrian_position )):
             pedestrian_angle = math.atan2(pedestrian_rot[i][1],pedestrian_rot[i][0])
@@ -656,7 +681,7 @@ class BehaviouralPlanner:
         prob_coll_pedestrian=[]
         for i in range(len( pedestrian_position )):
             obs_local_pos=from_global_to_local_frame(ego_state,pedestrian_position[i])
-            if obs_local_pos[0]>0 and obs_local_pos[0] < 20 and obs_local_pos[1]<3 and obs_local_pos[1]>-3:
+            if obs_local_pos[0]>0 and obs_local_pos[0] < 16 and obs_local_pos[1]<3 and obs_local_pos[1]>-3:
                 prob_coll_pedestrian.append(pedestrian_bb[i])
         return prob_coll_pedestrian
     
@@ -968,7 +993,7 @@ class BehaviouralPlanner:
             return None
 
         closest_pedestrian_local = from_global_to_local_frame(ego_state, self._closest_pedestrian["pos"])
-        return closest_pedestrian_local[0]
+        return closest_pedestrian_local[0]-3
         
                     
 

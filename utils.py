@@ -286,7 +286,7 @@ def waypoint_add_ahead_distance(waypoints, closest_index, goal_index, next_waypo
         for i in range(closest_index, goal):
             x_l2,y_l2 = from_global_to_local_frame(ego_state, waypoints[i][:2])
             if x_l2 > next_waypoint_distance:
-                x_g,y_g = from_local_to_global_frame(ego_state, [next_waypoint_distance, y_l])
+                x_g,y_g = from_local_to_global_frame(ego_state, [next_waypoint_distance, waypoints[closest_index]])
                 heading_index = i
                 break
 
@@ -296,7 +296,7 @@ def waypoint_add_ahead_distance(waypoints, closest_index, goal_index, next_waypo
     
     
     added_waypoint[0][0] = x_g
-    added_waypoint[0][1] = ego_state[1]
+    added_waypoint[0][1] = y_g
     added_waypoint[0][2] = waypoints[heading_index][2]
     temp = waypoints[heading_index:]
     waypoints.resize((len(waypoints)+1, 3), refcheck = False )
