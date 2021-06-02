@@ -3,7 +3,7 @@ from traffic_light import GREEN, RED, TrafficLight
 from utils import from_global_to_local_frame, from_local_to_global_frame
 import numpy as np
 import math
-from utils import from_global_to_local_frame, waypoint_adder_ahead, waypoints_adder_v2, waypoint_add_ahead_distance#, turn_to_intersection
+from utils import obstacle_to_world, from_global_to_local_frame, waypoint_adder_ahead, waypoints_adder_v2, waypoint_add_ahead_distance#, turn_to_intersection
 from queue import PriorityQueue
 # State machine states
 FOLLOW_LANE = 0
@@ -602,7 +602,7 @@ class BehaviouralPlanner:
         print("Closest pedestrian: ", self._closest_pedestrian)
         return
     
-    def check_for_vehicle(self,ego_state, vehicle_position,vehicle_bb):
+    def check_for_vehicle(self,ego_state, vehicle_position,vehicle_bb, vehicle_speed, vehicle_ori, vehicle_bbox_extend):
         prob_coll_vehicle=[]
         for i in range(len( vehicle_position )):
             obs_local_pos=from_global_to_local_frame(ego_state,vehicle_position[i])
@@ -610,7 +610,17 @@ class BehaviouralPlanner:
                 prob_coll_vehicle.append(vehicle_bb[i])
 
             if self._overtaking_vehicle is not None and i==self._overtaking_vehicle[1]:
-                prob_coll_vehicle.append(vehicle_bb[i])
+                #Portare il veicolo + avanti
+                #Prendere la locazione
+                obs_local_pos=from_global_to_local_frame(ego_state,vehicle_position[i])
+                #calcolare dove si troverà con s = s0 + v*t
+                x=obs_local_pos[0]+vehicle_speed[i]
+                y = obs_local_pos[1]
+                #Ritrasformare in globale
+                global_pos = from_local_to_global_frame(ego_state, [x,y])
+                #Costruire bbox
+                new_bbox = obstacle_to_world(global_pos, vehicle_bbox_extend[i], vehicle_ori[i])
+                prob_coll_vehicle.append(new_bbox)
 
 
         return prob_coll_vehicle
@@ -629,15 +639,15 @@ class BehaviouralPlanner:
         lead_car_local_pos=None
         ego_rot_x = ego_orientation[0]
         ego_rot_y = ego_orientation[1]
-        ego_angle = math.atan2(ego_rot_y,ego_rot_x) 
-        if ego_angle < 0:
-            ego_angle+=2*math.pi
+        ego_angle = math.atan2(ego_rot_y,ego_rot_x)  + math.pi
+        #if ego_angle < 0:
+        #    ego_angle+=2*math.pi
 
         
         for i in range(len(vehicle_position)):
-            vehicle_angle = math.atan2(vehicle_rot[i][1],vehicle_rot[i][0]) 
-            if vehicle_angle < 0:
-                vehicle_angle+=2*math.pi
+            vehicle_angle = math.atan2(vehicle_rot[i][1],vehicle_rot[i][0]) + math.pi
+            #if vehicle_angle < 0:
+            #    vehicle_angle+=2*math.pi
             local_pos=from_global_to_local_frame(ego_state,vehicle_position[i])
             
               
@@ -800,9 +810,9 @@ class BehaviouralPlanner:
 
         ego_rot_x = ego_orientation[0]
         ego_rot_y = ego_orientation[1]
-        ego_angle = math.atan2(ego_rot_y,ego_rot_x) 
-        if ego_angle < 0:
-            ego_angle+=2*math.pi
+        ego_angle = math.atan2(ego_rot_y,ego_rot_x) + math.pi
+        #if ego_angle < 0:
+        #    ego_angle+=2*math.pi
         
         #Se ci sono solo lead cars allora potrei sorpassare
         lead_cars = []
@@ -813,9 +823,9 @@ class BehaviouralPlanner:
             opposite_car = None
 
             #Controllare se il veicolo sta di faccia
-            vehicle_angle = math.atan2(vehicle_rot[i][1],vehicle_rot[i][0]) #+ math.pi
-            if vehicle_angle < 0:
-                vehicle_angle+=2*math.pi
+            vehicle_angle = math.atan2(vehicle_rot[i][1],vehicle_rot[i][0]) + math.pi#+ math.pi
+            #if vehicle_angle < 0:
+            #    vehicle_angle+=2*math.pi
 
             local_pos=from_global_to_local_frame(ego_state,vehicle_positions[i][:2])
 
@@ -890,16 +900,19 @@ class BehaviouralPlanner:
         next_intersection = self._next_intersection
         if next_intersection is None:
             self._may_overtake = False
+            print("CANNOT OVERTAKE: next_intersection is None")
             return False
             
         next_intersection_local = from_global_to_local_frame(ego_state, next_intersection[:2])
         if next_intersection_local[0]<meters: #Il prossimo incrocio è a meno di 50 metri
             self._may_overtake = False
+            print("CANNOT OVERTAKE: Il prossimo incrocio è a meno di 50 metri")
             return False
         
         #Controllare anche che non sia in un incrocio
         if self._nearest_intersection and np.linalg.norm(np.array(self._nearest_intersection[:2]) - np.array(ego_state[:2]) )<=20:
             self._may_overtake = False
+            print("CANNOT OVERTAKE: Sto a 20m dall'incrocio")
             return False
         
         #Controllare anche se l'incrocio più vicino dietro di me sta a 50m
@@ -913,7 +926,7 @@ class BehaviouralPlanner:
                 self._may_overtake = True
                 return True
             else:
-                print("CANNOT OVERATE: Lead is decelerating")
+                print("CANNOT OVERTAKE: Lead is decelerating")
                 self._may_overtake = False
                 return False
         else:

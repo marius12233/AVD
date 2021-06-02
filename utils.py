@@ -345,7 +345,39 @@ def pointOnSegment(p1, p2, p3):
         return False
 
         
+# Transform the obstacle with its boundary point in the global frame
+def obstacle_to_world(location, dimensions, orientation):
+    box_pts = []
 
+    x,y = location[:2]
+
+    yaw = orientation[0] * pi / 180
+
+    xrad = dimensions.x
+    yrad = dimensions.y
+    zrad = dimensions.z
+
+    # Border points in the obstacle frame
+    cpos = np.array([
+            [-xrad, -xrad, -xrad, 0,    xrad, xrad, xrad,  0    ],
+            [-yrad, 0,     yrad,  yrad, yrad, 0,    -yrad, -yrad]])
+    
+    # Rotation of the obstacle
+    rotyaw = np.array([
+            [np.cos(yaw), np.sin(yaw)],
+            [-np.sin(yaw), np.cos(yaw)]])
+    
+    # Location of the obstacle in the world frame
+    cpos_shift = np.array([
+            [x, x, x, x, x, x, x, x],
+            [y, y, y, y, y, y, y, y]])
+    
+    cpos = np.add(np.matmul(rotyaw, cpos), cpos_shift)
+
+    for j in range(cpos.shape[1]):
+        box_pts.append([cpos[0,j], cpos[1,j]])
+    
+    return box_pts
 
 
 

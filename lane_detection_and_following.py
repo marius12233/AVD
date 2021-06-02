@@ -119,7 +119,7 @@ class LaneFollowing:
 
         #points = list(zip([x1,y1))
 
-        for x,y in zip([x1],[x2]):
+        for x,y in zip([x1],[y1]):
             # From pixel to waypoint
 
             pixel = [x , y, 1]

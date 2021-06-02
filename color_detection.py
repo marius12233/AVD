@@ -37,7 +37,7 @@ def detect(image, color="red"):
 
 
 
-def traffic_color_detection(image, threshold=50):
+def traffic_color_detection(image, threshold=20):
     green_area = detect(image, color="green")
     yellow_area = detect(image, color="yellow")
     red_area = detect(image, color="red")

@@ -27,7 +27,9 @@ class TrafficLightDetector:
         self._th_score = th_score
         #self.centerPoint=0
     
-
+    def get_img(self):
+        return self.__img
+        
     def find_traffic_light(self, img):
         if img is None:
             return None

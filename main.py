@@ -43,10 +43,10 @@ from lane_detection_and_following import LaneFollowing
 ###############################################################################
 # CONFIGURABLE PARAMENTERS DURING EXAM
 ###############################################################################
-PLAYER_START_INDEX = 112#19#24#8#120#8#120#89##124#133#13#6#22#6#135#135#141#66 150         #  spawn index for player
-DESTINATION_INDEX =  128#143#90#139#63 #139#63#65#55#65#15#55#15#53#53#90#18        # Setting a Destination HERE
-NUM_PEDESTRIANS        = 150      # total number of pedestrians to spawn
-NUM_VEHICLES           = 60      # total number of vehicles to spawn
+PLAYER_START_INDEX = 120#19#112#19#24#8#120#8#120#89##124#133#13#6#22#6#135#135#141#66 150         #  spawn index for player
+DESTINATION_INDEX =   150#   143 #128#143#90#139#63 #139#63#65#55#65#15#55#15#53#53#90#18        # Setting a Destination HERE
+NUM_PEDESTRIANS        = 0#150      # total number of pedestrians to spawn
+NUM_VEHICLES           = 50#60      # total number of vehicles to spawn
 SEED_PEDESTRIANS       = 0      # seed for pedestrian spawn randomizer
 SEED_VEHICLES          = 0     # seed for vehicle spawn randomizer
 ###############################################################################àà
@@ -100,7 +100,7 @@ PATH_SELECT_WEIGHT     = 10
 A_MAX                  = 2.5              # m/s^2
 SLOW_SPEED             = 2.0              # m/s
 STOP_LINE_BUFFER       = 3.5              # m
-LEAD_VEHICLE_LOOKAHEAD = 20.0             # m
+LEAD_VEHICLE_LOOKAHEAD = 16#16#20.0             # m
 LP_FREQUENCY_DIVISOR   = 2                # Frequency divisor to make the 
                                           # local planner operate at a lower
                                           # frequency than the controller
@@ -1040,7 +1040,7 @@ def exec_waypoint_nav_demo(args):
 
             # Obtain Lead Vehicle information.
             prob_obs ={}
-            prob_obs["vehicle"]={"pos":[],"speed":[],"bounding_box":[], "rot":[]}
+            prob_obs["vehicle"]={"pos":[],"speed":[],"bounding_box":[], "rot":[], "ori":[], "bounding_box_extent":[]}
             prob_obs["pedestrian"]={"pos":[],"bounding_box":[],"speed":[],"rot":[]}            
             for agent in measurement_data.non_player_agents:
                 agent_id = agent.id
@@ -1051,8 +1051,8 @@ def exec_waypoint_nav_demo(args):
                     prob_obs["vehicle"]["bounding_box"].append(obstacle_to_world(agent.vehicle.transform.location,agent.vehicle.bounding_box.extent,agent.vehicle.transform.rotation))
                     
                     prob_obs["vehicle"]["rot"].append([agent.vehicle.transform.orientation.x,agent.vehicle.transform.orientation.y])
-                    
-                    
+                    prob_obs["vehicle"]["ori"].append([agent.vehicle.transform.rotation.yaw,agent.vehicle.transform.rotation.pitch, agent.vehicle.transform.rotation.roll ] )
+                    prob_obs["vehicle"]["bounding_box_extent"].append(agent.vehicle.bounding_box.extent)
             
                 
                 if agent.HasField('pedestrian'):
@@ -1145,6 +1145,7 @@ def exec_waypoint_nav_demo(args):
                 #Display next intersection
                 int_point = tl_tracking.find_next_intersection(ego_state)
                 if int_point is not None:
+                    bp.set_next_intersection(int_point)
                     visualize_point(map, int_point[0], int_point[1], 10, img_map, color=(0,0,225))
                     visualize_rect(map, (int_point[0]-20, int_point[1]-20, int_point[0]+20, int_point[1]+20), 3, img_map, color=(0,0,225))
                 
@@ -1228,14 +1229,22 @@ def exec_waypoint_nav_demo(args):
                         visualize_point(map, int(res_r[0][0]), int(res_r[0][1]), zr, img_map, color=(238,130,238), r=10)
                         traffic_light._last_img_cropped = tl_right_detector.get_img_cropped()
                         traffic_light._last_mask_cropped = tl_right_detector._mask
+                        traffic_light.set_complete_image(camera_data_r )
+                        traffic_light.set_bbox(tl_right_detector.get_enlarged_bbox())
+                        traffic_light.set_seg_img(labels_to_array(segmentation_data_r))
+
                         bp.set_traffic_light(traffic_light)
                     else: #Se non c'è la detection della camera destra vado con la centrale
                         if vehicle_bbox_traffic_light is not None:
                             #print("Clusters: ", tl_tracking.get_clusters())
                             if res is not None:
                                 #print("RESULT: ", res)
+
                                 traffic_light._last_img_cropped = tl_detector.get_img_cropped()
                                 traffic_light._last_mask_cropped = tl_detector._mask
+                                traffic_light.set_complete_image(camera_data)
+                                traffic_light.set_bbox(tl_detector.get_enlarged_bbox())
+                                traffic_light.set_seg_img(labels_to_array(segmentation_data))
                                 bp.set_traffic_light(traffic_light)
                 
                 elif vehicle_bbox_traffic_light is not None:
@@ -1245,13 +1254,16 @@ def exec_waypoint_nav_demo(args):
                        # print("RESULT: ", res)
                         traffic_light._last_img_cropped = tl_detector.get_img_cropped()
                         traffic_light._last_mask_cropped = tl_detector._mask
+                        traffic_light.set_complete_image(camera_data)
+                        traffic_light.set_bbox(tl_detector.get_enlarged_bbox())
+                        traffic_light.set_seg_img(labels_to_array(segmentation_data))
                         bp.set_traffic_light(traffic_light)
                 
                 else:
                     #print("No traffic Light")
                     ego_x, ego_y, _, _, _, ego_yaw = get_current_pose(measurement_data)
                     ego_state = [ego_x, ego_y, ego_yaw] #TODO vehicle location
-                    traffic_light.no_traffic_light_detection(ego_state)
+                    traffic_light.no_traffic_light_detection(ego_state, bp._state)
                     #bp._traffic_light = traffic_light
 
                 kf_pos = tl_tracking.get_kf_pos()
@@ -1295,7 +1307,7 @@ def exec_waypoint_nav_demo(args):
                 
                 #Check if we can make an overtaking
                 may_overtaking = bp.check_overtaking_condition(ego_state, (ego_orientation.x, ego_orientation.y), prob_obs["vehicle"]["pos"], prob_obs["vehicle"]["rot"], prob_obs["vehicle"]["speed"])
-
+                print("MAY OVERTAKEE:v ", may_overtaking)
                 #Visualize vehicles on map
                 img_map_copy = img_map.copy()
                 for i, v_p in enumerate(prob_obs["vehicle"]["pos"]):
@@ -1311,14 +1323,17 @@ def exec_waypoint_nav_demo(args):
                 cv2.waitKey(10)
 
                 if  bp.get_follow_lead_vehicle() and not may_overtaking:
-                    #print("----Follow Lead----")
-                    #print("Idx Lead: ", closest_vehicle_index)
+                    print("----Follow Lead----")
+                    print("Idx Lead: ", closest_vehicle_index)
                     #
                     lead_car_state=[prob_obs["vehicle"]["pos"][closest_vehicle_index][0], prob_obs["vehicle"]["pos"][closest_vehicle_index][1], prob_obs["vehicle"]["speed"][closest_vehicle_index]]
                     #
                     prob_obs["vehicle"]["bounding_box"].pop(closest_vehicle_index)        
                     prob_obs["vehicle"]["pos"].pop(closest_vehicle_index)
                     prob_obs["vehicle"]["rot"].pop(closest_vehicle_index)
+                    prob_obs["vehicle"]["speed"].pop(closest_vehicle_index)
+                    prob_obs["vehicle"]["ori"].pop(closest_vehicle_index)
+                    prob_obs["vehicle"]["bounding_box_extent"].pop(closest_vehicle_index)
                 else:
                     lead_car_state=None
                 # Compute the goal state set from the behavioural planner's computed goal state.
@@ -1334,11 +1349,17 @@ def exec_waypoint_nav_demo(args):
                 if(len(paths)>0):
                     collision_check_array=[ True ]*len(paths)
                     #prob_coll_pedestrian=bp.check_for_pedestrian(ego_state,prob_obs["pedestrian"]["pos"],prob_obs["pedestrian"]["bounding_box"])
-                    prob_coll_vehicle=bp.check_for_vehicle(ego_state,prob_obs["vehicle"]["pos"],prob_obs["vehicle"]["bounding_box"])
-                    #print("Prob coll. vehicle: ", prob_coll_vehicle)
+                    prob_coll_vehicle=bp.check_for_vehicle(ego_state,prob_obs["vehicle"]["pos"],prob_obs["vehicle"]["bounding_box"], prob_obs["vehicle"]["speed"],prob_obs["vehicle"]["ori"], prob_obs["vehicle"]["bounding_box_extent"])                    #print("Prob coll. vehicle: ", prob_coll_vehicle)
                     for bb in  prob_coll_vehicle:
                         cc = lp._collision_checker.collision_check(paths, [bb])
                         collision_check_array=list(np.array(cc) & np.array(collision_check_array))
+
+
+                    if sum(collision_check_array)>=2:
+                        if bp._state == behavioural_planner.OVERTAKING:
+                            collision_check_array[0]=False #TODO: avoid this
+                        elif bp._state == behavioural_planner.FOLLOW_LANE:
+                            collision_check_array[-1]=False
 
                     #if bp._state == behavioural_planner.OVERTAKING: #Se sto ancora sorpassando togli le ultime 3:
 
