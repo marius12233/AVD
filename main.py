@@ -758,7 +758,7 @@ def exec_waypoint_nav_demo(args):
                     middle_point = [(start_intersection[0] + end_intersection[0]) /2,  (start_intersection[1] + end_intersection[1]) /2]
 
                     turn_angle = math.atan2((end_intersection[1] - start_intersection[1]),(start_intersection[0] - end_intersection[0]))
-                    print(turn_angle,  pi / 4, middle_point[0] - center_intersection[0] < 0)
+                    #print(turn_angle,  pi / 4, middle_point[0] - center_intersection[0] < 0)
 
                     turn_adjust = 0 < turn_angle < pi / 2 and middle_point[0] - center_intersection[0] < 0
                     turn_adjust_2 =  pi / 2 < turn_angle < pi and middle_point[0] - center_intersection[0] < 0
@@ -1311,8 +1311,8 @@ def exec_waypoint_nav_demo(args):
                 cv2.waitKey(10)
 
                 if  bp.get_follow_lead_vehicle() and not may_overtaking:
-                    print("----Follow Lead----")
-                    print("Idx Lead: ", closest_vehicle_index)
+                    #print("----Follow Lead----")
+                    #print("Idx Lead: ", closest_vehicle_index)
                     #
                     lead_car_state=[prob_obs["vehicle"]["pos"][closest_vehicle_index][0], prob_obs["vehicle"]["pos"][closest_vehicle_index][1], prob_obs["vehicle"]["speed"][closest_vehicle_index]]
                     #
@@ -1335,7 +1335,7 @@ def exec_waypoint_nav_demo(args):
                     collision_check_array=[ True ]*len(paths)
                     #prob_coll_pedestrian=bp.check_for_pedestrian(ego_state,prob_obs["pedestrian"]["pos"],prob_obs["pedestrian"]["bounding_box"])
                     prob_coll_vehicle=bp.check_for_vehicle(ego_state,prob_obs["vehicle"]["pos"],prob_obs["vehicle"]["bounding_box"])
-                    print("Prob coll. vehicle: ", prob_coll_vehicle)
+                    #print("Prob coll. vehicle: ", prob_coll_vehicle)
                     for bb in  prob_coll_vehicle:
                         cc = lp._collision_checker.collision_check(paths, [bb])
                         collision_check_array=list(np.array(cc) & np.array(collision_check_array))

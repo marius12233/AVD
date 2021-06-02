@@ -157,7 +157,7 @@ class BehaviouralPlanner:
             _,is_at_intersection =  self.check_for_next_intersection(waypoints, closest_index, goal_index, ego_state)
 
             if self._traffic_light is not None:
-                print("Intersection: {} traffic light: {} is next: {}".format(is_at_intersection, self._traffic_light.get_color()==RED, self._traffic_light.is_next()))
+                #print("Intersection: {} traffic light: {} is next: {}".format(is_at_intersection, self._traffic_light.get_color()==RED, self._traffic_light.is_next()))
                 if is_at_intersection and self._traffic_light.get_color()==RED and not self._traffic_light.is_next():
                     #Controlla se c'è un veicolo in un certo range, se ci sta metti un waypoint
                     #a un metro da me per farmi fermare
@@ -166,8 +166,8 @@ class BehaviouralPlanner:
                         self._goal_index = closest_index
                         self._goal_state = waypoints[closest_index]
                         self._goal_state[2] = 0
-                        print("VEICOLO OPPOSTO AVANTI!!!!")
-                        print("TL Waypoint: ", from_global_to_local_frame(ego_state, self._goal_state[:2]))
+                        #print("VEICOLO OPPOSTO AVANTI!!!!")
+                        #print("TL Waypoint: ", from_global_to_local_frame(ego_state, self._goal_state[:2]))
                         self._state = DECELERATE_TO_STOP                   
             
             try_to_stop_distance=self.try_to_stop(waypoints,closest_index,goal_index,ego_state)
@@ -216,7 +216,7 @@ class BehaviouralPlanner:
             elif  self._traffic_light is not None:
                 color = self._traffic_light.get_color()
                 if  (color == GREEN and self._traffic_light.is_next() ) or (color == RED and not self._traffic_light.is_next() and len(self._opposites)==0):
-                    print("SEMAFORO CAMBIATO: ROSSO -> VERDE")
+                    #print("SEMAFORO CAMBIATO: ROSSO -> VERDE")
                     self._state = FOLLOW_LANE
             
 
@@ -265,10 +265,10 @@ class BehaviouralPlanner:
             if not self._overtaking_vehicle[1] == self._lead_car:
                 #Non è più la lead car (si presume sia davanti a me adesso)
                 #Controllare che la distanza diventi almeno 6 metri
-                print("Overtaking vehicle: ", self._overtaking_vehicle)
-                print("Lead car: ", self._lead_car)
+                #print("Overtaking vehicle: ", self._overtaking_vehicle)
+                #print("Lead car: ", self._lead_car)
                 ego_dist = self._overtaking_vehicle[0]
-                print("Distanza da me: ", ego_dist)
+                #print("Distanza da me: ", ego_dist)
                 if ego_dist < -8 :
                     self._overtaking_vehicle = None #L'ho sorpassato
                     self._state = FOLLOW_LANE
@@ -383,7 +383,7 @@ class BehaviouralPlanner:
         if self._traffic_light.has_changed or self._traffic_light._changed_color:
             #SCelgo di fermarmi a distanza 6 dal semaforo
             #distanza dal semaforo
-            print("CHECK FOR TRAFFIC LIGHT")
+            #print("CHECK FOR TRAFFIC LIGHT")
 
             preferred_distance = s_local[0]-MIN_DIST_TO_STOP-1
             #min_idx ,useless= waypoint_add_ahead_distance(waypoints, closest_index, goal_index, preferred_distance, ego_state)
@@ -561,7 +561,7 @@ class BehaviouralPlanner:
             
             local_pos=from_global_to_local_frame(ego_state,pedestrian_position[i])
             if self._nearest_intersection and np.linalg.norm(np.array(self._nearest_intersection[:2]) - np.array(ego_state[:2]) )<=15:
-                print("Sto all'intersezione se m appizz")
+                
                 lookahead_dist=6
             
             if local_pos[0]>0 and local_pos[0] <lookahead_dist and local_pos[1]>-5 and local_pos[1]<5 and pedestrian_angle < ego_angle-0.20 and pedestrian_angle < ego_angle-0.20:
@@ -587,7 +587,7 @@ class BehaviouralPlanner:
                 self._closest_pedestrian["index"]=closest_ped_idx
                 self._closest_pedestrian["speed"]=pedestrian_speed[closest_ped_idx]
                 self._closest_pedestrian["count"]=0
-        print(self._closest_pedestrian)
+        #print(self._closest_pedestrian)
         return
     
     def check_for_vehicle(self,ego_state, vehicle_position,vehicle_bb):
@@ -698,7 +698,7 @@ class BehaviouralPlanner:
                 
                 opposite_cars.append(opposite_car)
             elif lead_car:
-                print("Local positions of {} is {} and v: {}".format(i, str(int(local_pos[0]))+" ,"+str(int(local_pos[1])), vehicle_speed[i-1]))
+                #print("Local positions of {} is {} and v: {}".format(i, str(int(local_pos[0]))+" ,"+str(int(local_pos[1])), vehicle_speed[i-1]))
                 lead_cars.append(lead_car)
                 self._leads.put((local_pos[0], lead_car))
                 
@@ -715,11 +715,11 @@ class BehaviouralPlanner:
                 min_lc = lc
 
         #2. prendere la velocità
-        print("Min dist lead is: ", min_lc)
+        #print("Min dist lead is: ", min_lc)
         if min_lc is not None:
             speed_lead_car = vehicle_speed[min_lc]
-            print("previous speed lead is: ", self._speed_lead_car)
-            print("its speed is is: ", speed_lead_car)
+            #print("previous speed lead is: ", self._speed_lead_car)
+            #print("its speed is is: ", speed_lead_car)
             
             #se è zero o sta decrescendo non sorpassarlo, perché probabilmente si è fermato a un semaforo o a un incrocio
             dy = 0.5
@@ -734,8 +734,8 @@ class BehaviouralPlanner:
             self._lead_car = None
         
         self._opposites = opposite_cars
-        print("Opposite cars: ", opposite_cars)
-        print("leading cars: ", lead_cars)
+        #print("Opposite cars: ", opposite_cars)
+        #print("leading cars: ", lead_cars)
         #Controllare se sto a 50 metri da un incrocio
         next_intersection = self._next_intersection
         if next_intersection is None:
@@ -747,20 +747,20 @@ class BehaviouralPlanner:
 
         if len(opposite_cars)==0:
             if not lead_has_decelerated:
-                print("CAN OVERTAKE!!")
-                print("Opposite cars: ", opposite_cars)
-                print("leading cars: ", lead_cars)
+                #print("CAN OVERTAKE!!")
+                #print("Opposite cars: ", opposite_cars)
+               # print("leading cars: ", lead_cars)
                 #self._follow_lead_vehicle = False
                 self._may_overtake = True
                 return True
             else:
-                print("CANNOT OVERATE: Lead is decelerating")
+                #print("CANNOT OVERATE: Lead is decelerating")
                 self._may_overtake = False
                 return False
         else:
-            print("CANNOT OVERTAKE")
-            print("Opposite cars: ", opposite_cars)
-            print("leading cars: ", lead_cars)
+            #print("CANNOT OVERTAKE")
+            #print("Opposite cars: ", opposite_cars)
+            #print("leading cars: ", lead_cars)
             #self._follow_lead_vehicle = False
             self._may_overtake = False
             return False
