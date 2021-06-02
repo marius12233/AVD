@@ -255,13 +255,13 @@ def waypoint_adder_ahead(waypoints, closest_index , ego_state):
 
 def waypoint_add_ahead_distance(waypoints, closest_index, goal_index, next_waypoint_distance, ego_state):
     if next_waypoint_distance <0 :
-        return goal_index,True
+        return goal_index
     added_waypoint = [[0,0,0]]
     heading_index = None #L'indice a cui devo inserire il waypoint
     x_l,y_l = from_global_to_local_frame(ego_state, waypoints[closest_index][:2])
     if x_l < next_waypoint_distance +1 and x_l > next_waypoint_distance :
         heading_index=closest_index
-        return heading_index,True
+        return heading_index
         
          #Il closest index sta più avanti di dove voglio fermarmi
         #Devo mettere un waypoint dietro il closest index
@@ -279,14 +279,14 @@ def waypoint_add_ahead_distance(waypoints, closest_index, goal_index, next_waypo
             x_l2,y_l2 = from_global_to_local_frame(ego_state, waypoints[i][:2])
             if x_l2 > next_waypoint_distance - 1 and x_l2 < next_waypoint_distance + 1:
                 print("Ce ne sta gia uno")
-                return i,True
+                return i
             elif x_l2 > next_waypoint_distance:
                 x_g,y_g = from_local_to_global_frame(ego_state, [next_waypoint_distance, y_l])
                 heading_index = i
                 break
 
     if heading_index is None:
-        return goal_index,False
+        return goal_index
     
     
     added_waypoint[0][0] = x_g
@@ -297,7 +297,7 @@ def waypoint_add_ahead_distance(waypoints, closest_index, goal_index, next_waypo
     waypoints[heading_index:heading_index+1] = np.array(added_waypoint)
     waypoints[heading_index+1:] = temp
     print("Added waypoint in :",waypoints[heading_index][:2])
-    return heading_index,True 
+    return heading_index 
 """
 
 def turn_to_intersection(waypoints, intersection_point, ego_state):

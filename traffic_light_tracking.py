@@ -78,23 +78,42 @@ class TrafficLightTracking:
 
 
     def find_nearest_intersection(self, ego_state):
+    
         intersection_nodes = self._intersection_nodes
+
         if intersection_nodes is None:
+
             return None
+
         #Find the intersection at minimum distance which is forward
+
         dist = np.Inf #distance between your x and intersection x
+
         next_intersection = None
+
         for point in intersection_nodes:
+
             x_p, y_p = point[0], point[1]
+
             #local_point = from_global_to_local_frame(ego_state, (x_p, y_p))
+
+
 
             #if local_point[0]>0: #se sta davanti
 
+
+
             distance = np.linalg.norm(np.array(ego_state[:2])-np.array(point[:2]))
 
+
+
             if distance<dist: #Lo prendo a minima distanza da me
+
                 dist = distance
+
                 next_intersection = point
+
+
 
         return next_intersection
 
