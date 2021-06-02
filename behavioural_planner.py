@@ -43,6 +43,7 @@ class BehaviouralPlanner:
         self._overtaking_vehicle = None
         self._closest_pedestrian=None
         self._nearest_intersection=None
+        self._forward_pedestrian = {}
     
     def set_lookahead(self, lookahead):
         self._lookahead = lookahead
@@ -218,6 +219,8 @@ class BehaviouralPlanner:
                 if  (color == GREEN and self._traffic_light.is_next() ) or (color == RED and not self._traffic_light.is_next() and len(self._opposites)==0):
                     #print("SEMAFORO CAMBIATO: ROSSO -> VERDE")
                     self._state = FOLLOW_LANE
+            else:
+                self._state = FOLLOW_LANE
             
 
             
@@ -358,9 +361,17 @@ class BehaviouralPlanner:
                     i.e. waypoints[goal_index] gives the goal waypoint
                 stop_sign_found: Boolean flag for whether a stop sign was found or not
         """
-
+        print("CHECK FOR TRAFFIC LIGHT")
         if self._traffic_light is None:
             return None
+        
+        print("STATO SEMAFORO: is next: {}, color:{}, changed:{}, changed color:{}"
+        .format(self._traffic_light.is_next(), 
+        self._traffic_light._color, 
+        self._traffic_light.has_changed, 
+        self._traffic_light._changed_color,
+        
+        ))
         
         #Se il semaforo corrente non è più il prossimo dici che non c'è
         if not self._traffic_light.is_next():
@@ -377,6 +388,7 @@ class BehaviouralPlanner:
         s_local = from_global_to_local_frame(ego_state, s)
         
         if s_local[0] > self._lookahead: #Non sono arrivato col veicolo a guardare i waypoints nel range specificato
+            print("Non sono nel lookahead")
             return None
 
         
@@ -564,7 +576,7 @@ class BehaviouralPlanner:
                 
                 lookahead_dist=6
             
-            if local_pos[0]>0 and local_pos[0] <lookahead_dist and local_pos[1]>-5 and local_pos[1]<5 and pedestrian_angle < ego_angle-0.20 and pedestrian_angle < ego_angle-0.20:
+            if local_pos[0]>0 and local_pos[0] <lookahead_dist and local_pos[1]>-5 and local_pos[1]<5 and pedestrian_angle < ego_angle-0.20 and pedestrian_angle > ego_angle + 0.20:
                 if local_pos[0] < local_pos_closest:
                     local_pos_closest=local_pos[0]
                     closest_ped_idx=i
@@ -587,7 +599,7 @@ class BehaviouralPlanner:
                 self._closest_pedestrian["index"]=closest_ped_idx
                 self._closest_pedestrian["speed"]=pedestrian_speed[closest_ped_idx]
                 self._closest_pedestrian["count"]=0
-        #print(self._closest_pedestrian)
+        print("Closest pedestrian: ", self._closest_pedestrian)
         return
     
     def check_for_vehicle(self,ego_state, vehicle_position,vehicle_bb):
@@ -629,7 +641,6 @@ class BehaviouralPlanner:
             
         return lead_car_idx
 
-    def check_overtaking_condition(self, ego_state, ego_orientation, vehicle_positions, vehicle_rot, vehicle_speed):
         """ Tale metodo controlla se ci sono le condizioni per sorpassare un veicolo:
             1- Non ci siano macchine di senso opposto nel giro di tot. metri
             2- Non ci sono incroci nel giro di tot. metri
@@ -765,19 +776,161 @@ class BehaviouralPlanner:
             self._may_overtake = False
             return False
         
-    
+    def check_overtaking_condition(self, ego_state, ego_orientation, vehicle_positions, vehicle_rot, vehicle_speed):
+        """ Tale metodo controlla se ci sono le condizioni per sorpassare un veicolo:
+            1- Non ci siano macchine di senso opposto nel giro di tot. metri
+            2- Non ci sono incroci nel giro di tot. metri
+            3- Non ci sono persone sulla strada nel giro di tot. metri
+
+        Args:
+            lead_car ([type]): [description]
+            vehicles_position ([type]): [description]
+        """
+
+        meters = 50
+
+
+        ego_rot_x = ego_orientation[0]
+        ego_rot_y = ego_orientation[1]
+        ego_angle = math.atan2(ego_rot_y,ego_rot_x) + math.pi
+        #if ego_angle < 0:
+        #    ego_angle+=2*math.pi
         
+        #Se ci sono solo lead cars allora potrei sorpassare
+        lead_cars = []
+        opposite_cars = []
+        #1. Controllare se ci sono veicolo in senso opposto nel giro di meters
+        for i in range(len(vehicle_positions)):
+            lead_car = None
+            opposite_car = None
+
+            #Controllare se il veicolo sta di faccia
+            vehicle_angle = math.atan2(vehicle_rot[i][1],vehicle_rot[i][0]) + math.pi
+            #if vehicle_angle < 0:
+            #    vehicle_angle+=2*math.pi
+
+            local_pos=from_global_to_local_frame(ego_state,vehicle_positions[i][:2])
+
+            #Aggiorniamo sempre l'overtaking vehicle
+            if self._overtaking_vehicle is not None and i ==self._overtaking_vehicle[1]:
+                self._overtaking_vehicle = (local_pos[0], i)
             
+            
+            
+            if local_pos[0] >= -6 and abs(local_pos[1])<5: #Se il veicolo considerato sta davanti a me
+                if (vehicle_angle < ego_angle + math.pi/4 and  vehicle_angle > ego_angle - math.pi/4):  
+                    #E' un lead_car
+                    lead_car = i
+                else:
+                    opposite_car = i
+
+            
+            #Se il veicolo ha orientamento opposto al mio Controllare sta davanti a me di tot metri
+            if opposite_car:
+                if local_pos[0] > meters or abs(local_pos[1])>20: #Se non sta davanti a me di tot metri e in un range di -5,+5 metri
+                    opposite_car=None
+            if lead_car:
+                if local_pos[0] > meters or abs(local_pos[1])>20:
+                    lead_car=None
+            
+            #Metto tutto in una PQ in base alla distanza dal veicolo
+            if opposite_car:
+                 #In leads ci metto in ordine in base alla distanza da me
+                
+                opposite_cars.append(opposite_car)
+            elif lead_car:
+                #print("Local positions of {} is {} and v: {}".format(i, str(int(local_pos[0]))+" ,"+str(int(local_pos[1])), vehicle_speed[i-1]))
+                lead_cars.append(lead_car)
+                self._leads.put((local_pos[0], lead_car))
+                
+        
+        
+        #1. Prendere il prossimo lead car (il più vicino a me)
+        lead_has_decelerated = False
+        d=np.Inf
+        min_lc = None
+        for lc in lead_cars:
+            distance = np.linalg.norm(np.array(vehicle_positions[lc][:2]) - np.array(ego_state[:2]))
+            if distance < d:
+                d = distance
+                min_lc = lc
+
+        #2. prendere la velocità
+        #print("Min dist lead is: ", min_lc)
+        if min_lc is not None:
+            speed_lead_car = vehicle_speed[min_lc]
+            #print("previous speed lead is: ", self._speed_lead_car)
+            #print("its speed is is: ", speed_lead_car)
+            
+            #se è zero o sta decrescendo non sorpassarlo, perché probabilmente si è fermato a un semaforo o a un incrocio
+            dy = 0.5
+            if speed_lead_car < 0.5 or ((speed_lead_car - self._speed_lead_car)<0 and abs(speed_lead_car - self._speed_lead_car)>dy):
+                lead_has_decelerated = True
+
+            self._speed_lead_car = speed_lead_car
+            self._lead_car = min_lc
+        else:
+            self._speed_lead_car=0
+            lead_has_decelerated = False
+            self._lead_car = None
+        
+        self._opposites = opposite_cars
+        print("Opposite cars: ", opposite_cars)
+        print("leading cars: ", lead_cars)
+
+        #Controllare se sto a 50 metri da un incrocio
+        next_intersection = self._next_intersection
+        if next_intersection is None:
+            self._may_overtake = False
+            return False
+            
+        next_intersection_local = from_global_to_local_frame(ego_state, next_intersection[:2])
+        if next_intersection_local[0]<meters: #Il prossimo incrocio è a meno di 50 metri
+            self._may_overtake = False
+            return False
+        
+        #Controllare anche che non sia in un incrocio
+        if self._nearest_intersection and np.linalg.norm(np.array(self._nearest_intersection[:2]) - np.array(ego_state[:2]) )<=20:
+            self._may_overtake = False
+            return False
+        
+        #Controllare anche se l'incrocio più vicino dietro di me sta a 50m
+
+        if len(opposite_cars)==0:
+            if not lead_has_decelerated:
+                print("CAN OVERTAKE!!")
+                print("Opposite cars: ", opposite_cars)
+                print("leading cars: ", lead_cars)
+                #self._follow_lead_vehicle = False
+                self._may_overtake = True
+                return True
+            else:
+                print("CANNOT OVERATE: Lead is decelerating")
+                self._may_overtake = False
+                return False
+        else:
+            print("CANNOT OVERTAKE")
+            print("Opposite cars: ", opposite_cars)
+            print("leading cars: ", lead_cars)
+            #self._follow_lead_vehicle = False
+            self._may_overtake = False
+            return False
+   
 
                     
     def try_to_stop(self,waypoints,closest_index,goal_index,ego_state):
         if self._closest_pedestrian is None:
+            self._forward_pedestrian = {}
             return None
-        
-        
-        closest_pedestrian_local = from_global_to_local_frame(ego_state, self._closest_pedestrian["pos"])
-        
-        return closest_pedestrian_local[0]-5
+        closest_pedestrian_idx = self._closest_pedestrian["index"] 
+
+        if self._forward_pedestrian.get(closest_pedestrian_idx) is None:
+            closest_pedestrian_local = from_global_to_local_frame(ego_state, self._closest_pedestrian["pos"])
+            print("Sto a d:{} dal pedone".format(closest_pedestrian_local[0]))
+
+            self._forward_pedestrian[closest_pedestrian_idx]=True
+            return closest_pedestrian_local[0]-3
+        return None
         
                     
 

@@ -254,14 +254,17 @@ def waypoint_adder_ahead(waypoints, closest_index , ego_state):
     print(waypoints)
 
 def waypoint_add_ahead_distance(waypoints, closest_index, goal_index, next_waypoint_distance, ego_state):
+    print("WAYPOINT ADDER")
     if next_waypoint_distance <0 :
+        print("WAYPOINT ADDER: distance <0")
         return closest_index
     added_waypoint = [[0,0,0]]
     heading_index = None #L'indice a cui devo inserire il waypoint
     x_l,y_l = from_global_to_local_frame(ego_state, waypoints[closest_index][:2])
-    if x_l < next_waypoint_distance +1 and x_l > next_waypoint_distance :
-        heading_index=closest_index
-        return heading_index
+    #if x_l < next_waypoint_distance and x_l > next_waypoint_distance :
+    #    heading_index=closest_index
+    #    print("WAYPOINT ADDER: sto restituendo closest")
+    #    return heading_index
         
          #Il closest index sta più avanti di dove voglio fermarmi
         #Devo mettere un waypoint dietro il closest index
@@ -269,23 +272,26 @@ def waypoint_add_ahead_distance(waypoints, closest_index, goal_index, next_waypo
     if x_l > next_waypoint_distance:
         x_g,y_g = from_local_to_global_frame(ego_state, [next_waypoint_distance, y_l])
         heading_index = closest_index
+        print("WAYPOINT ADDER: heading_index = closest_index")
 
     elif x_l < next_waypoint_distance : #La distanza dal closest  index è minore rispetto alla distanza che hai messo
         #print("AFTER CLOSEST")
         #scorri i waypoints avanti fino a che non trovi uno con distanza maggiore. QDevi 
         #mettere il nuovo waypoint dietro questo
          #Waypoint che sta dopo quello che devo mettere
-        for i in range(closest_index, goal_index):
+        print("AFTER CLOSEST")
+        goal = goal_index
+        if goal_index<len(waypoints)-1:
+            goal+=1
+        for i in range(closest_index, goal):
             x_l2,y_l2 = from_global_to_local_frame(ego_state, waypoints[i][:2])
-            if x_l2 > next_waypoint_distance - 1 and x_l2 < next_waypoint_distance + 1:
-                print("Ce ne sta gia uno")
-                return i
-            elif x_l2 > next_waypoint_distance:
+            if x_l2 > next_waypoint_distance:
                 x_g,y_g = from_local_to_global_frame(ego_state, [next_waypoint_distance, y_l])
                 heading_index = i
                 break
 
     if heading_index is None:
+        print("WAYPOINT ADDER: heading_index is None")
         return goal_index
     
     

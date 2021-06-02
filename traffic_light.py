@@ -50,8 +50,8 @@ class TrafficLight:
             color_cv = traffic_color_detection(img)
             if color_cv is not None:
                 color = color_cv 
-            #else:
-            #    color = self._color
+            else:
+                color = self._color
             print("COLOR: ", "RED" if color else "GREEN" )
 
         if not color == self._color:

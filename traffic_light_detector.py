@@ -20,7 +20,7 @@ class TrafficLightDetector:
         self.__img = None
         self.box = None
         #self._min_frames_ok = 3 #minimum number of frames 
-        self._max_frame_ok = 3 #number of consecutive frames to detect traffic light 
+        self._max_frame_ok = 1 #number of consecutive frames to detect traffic light 
         self._counter_consecutive_detection = 0
         self._mask = None
         self._crop_seg = None
@@ -40,12 +40,12 @@ class TrafficLightDetector:
         box=boxes[0] #the most important
         self.box = box
         score = box.get_score()
-        print("SCORE: ", score)
+        #print("SCORE: ", score)
         
         if score<self._th_score:
             self.__bbox=None
             return None
-        #print("Score: ", score)
+        print("Score: ", score)
         w,h,_ = img.shape
         self.__class = box.get_label()
         self.__bbox = (int(box.xmin*w), int(box.ymin*h), int(box.xmax*w), int(box.ymax*h))

@@ -40,7 +40,7 @@ class TrafficLightTracking:
         self.directions = {}
         self.max_meters = 15
         self._max_distance_to_vehicle = 60
-        self.min_measurements = 4
+        self.min_measurements = 3
         self._intersection_nodes = intersection_nodes
         
 
@@ -238,7 +238,7 @@ class TrafficLightTracking:
         #del(self.groups[min_dist_elem])
         #del(self.color_groups[min_dist_elem])
 
-        #get cettroid
+        #get centroid
         centroid = centeroidnp(np.array(points))
         sum_colors = np.sum(colors)
         color = 1 if  sum_colors > len(colors)//2  else 0 #Majority vote
