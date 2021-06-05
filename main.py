@@ -11,6 +11,7 @@ import time
 import math
 import numpy as np
 import csv
+import json
 import matplotlib.pyplot as plt
 from numpy.core.defchararray import index
 import controller2d
@@ -43,8 +44,8 @@ from lane_detection_and_following import LaneFollowing
 ###############################################################################
 # CONFIGURABLE PARAMENTERS DURING EXAM
 ###############################################################################
-PLAYER_START_INDEX = 24#19#24#8#120#8#120#89##124#133#13#6#22#6#135#135#141#66 150         #  spawn index for player
-DESTINATION_INDEX =  90#143#90#139#63 #139#63#65#55#65#15#55#15#53#53#90#18        # Setting a Destination HERE
+PLAYER_START_INDEX = 19#120#24#19#24#8#120#8#120#89##124#133#13#6#22#6#135#135#141#66 150         #  spawn index for player
+DESTINATION_INDEX =  90#147#90#143#90#139#63 #139#63#65#55#65#15#55#15#53#53#90#18        # Setting a Destination HERE
 NUM_PEDESTRIANS        = 200      # total number of pedestrians to spawn
 NUM_VEHICLES           = 50      # total number of vehicles to spawn
 SEED_PEDESTRIANS       = 0      # seed for pedestrian spawn randomizer
@@ -687,6 +688,7 @@ def exec_waypoint_nav_demo(args):
         speed_history = [0]
         collided_flag_history = [False]  # assume player starts off non-collided
 
+        intersections_turn = {}#dict that collects the intersection points which are in a turn
         #############################################
         # Settings Waypoints
         #############################################
@@ -751,7 +753,10 @@ def exec_waypoint_nav_demo(args):
                 dx = start_intersection[0] - end_intersection[0]
                 dy = start_intersection[1] - end_intersection[1]
 
-                if abs(dx) > 0 and abs(dy) > 0:
+                if abs(dx) > 0 and abs(dy) > 0: #Siamo in una curva
+                    
+                    intersections_turn[str(mission_planner._map.convert_to_world(point)[:2])] = 1
+
                     intersection_pair.append((center_intersection,len(waypoints)))
                     waypoints[-1][2] = turn_speed
                     
@@ -811,6 +816,9 @@ def exec_waypoint_nav_demo(args):
                         theta += theta_step
                     
                     turn_cooldown = 4
+                
+                else:
+                    intersections_turn[str(mission_planner._map.convert_to_world(point)[:2])] = 0
             else:
                 waypoint = mission_planner._map.convert_to_world(point)
 
@@ -825,6 +833,9 @@ def exec_waypoint_nav_demo(args):
                 waypoints.append(waypoint_on_lane)
 
                 previuos_waypoint = waypoint
+        
+        #with open('int_turn.json', 'w') as fp:
+        #    json.dump(intersections_turn, fp)
 
         waypoints = np.array(waypoints)
         #############################################
@@ -957,6 +968,7 @@ def exec_waypoint_nav_demo(args):
                                         STOP_LINE_BUFFER)
         bp = behavioural_planner.BehaviouralPlanner(BP_LOOKAHEAD_BASE,
                                                     LEAD_VEHICLE_LOOKAHEAD)
+        bp.set_intersections_turn(intersections_turn)
         lane_following = LaneFollowing(camera_parameters)
         #############################################
         # Perception modules
@@ -1304,6 +1316,8 @@ def exec_waypoint_nav_demo(args):
                 # Check to see if we need to follow the lead vehicle.
                 #lead_car_idx=None
                 if closest_vehicle_index is not None:
+                    print("#############\nLead car: ", closest_vehicle_index)
+                    print("#############")
                     bp.check_for_lead_vehicle(ego_state, prob_obs["vehicle"]["pos"][closest_vehicle_index])
                 else:
                     bp.check_for_lead_vehicle(ego_state, None)
@@ -1318,7 +1332,7 @@ def exec_waypoint_nav_demo(args):
                     visualize_point(map, v_p[0], v_p[1], 38, img_map_copy, color=(255,0,0), text=str(i))
                 for i, p_p in enumerate(prob_obs["pedestrian"]["pos"]):
                     idx_pos = str(i) + "_" + str(int(v_p[0])) + "," + str(int(v_p[1]))
-                    visualize_point(map, p_p[0], p_p[1], 38, img_map_copy, color=(255,0,0), text=str(i))
+                    visualize_point(map, p_p[0], p_p[1], 38, img_map_copy, color=(0,0,255), text=str(i))
                 visualize_point(map, ego_state[0], ego_state[1], 38, img_map_copy, color=(0,0,255))
 
                 img_map_copy=cv2.resize(img_map_copy, (1000,1000))
@@ -1353,7 +1367,7 @@ def exec_waypoint_nav_demo(args):
                 if(len(paths)>0):
                     collision_check_array=[ True ]*len(paths)
                     prob_coll_pedestrian=bp.check_for_pedestrian(ego_state,prob_obs["pedestrian"]["pos"],prob_obs["pedestrian"]["bounding_box"])
-                    prob_coll_vehicle=bp.check_for_vehicle(ego_state,prob_obs["vehicle"]["pos"],prob_obs["vehicle"]["bounding_box"])
+                    prob_coll_vehicle=bp.check_for_vehicle(ego_state,prob_obs["vehicle"]["pos"],prob_obs["vehicle"]["bounding_box"], prob_obs["vehicle"]["speed"],prob_obs["vehicle"]["ori"], prob_obs["vehicle"]["bounding_box_extent"])
                     #print("Prob coll. vehicle: ", prob_coll_vehicle)
                     for bb in  prob_coll_vehicle+ prob_coll_pedestrian:
                         cc = lp._collision_checker.collision_check(paths, [bb])

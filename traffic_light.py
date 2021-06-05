@@ -130,6 +130,7 @@ class TrafficLight:
             
             #no 0,1,2,3
             #road, lane-marking, traffic sign, sidewalk, fence, pole, wall, building, vegetation, vehicle, pedestrian, and other
+            """
             print("no_traffic_light_detection", bbox is not None and img is not None and seg_img is not None)
             print("State: ", stopped)
             if bbox is not None and img is not None and seg_img is not None:
@@ -151,6 +152,7 @@ class TrafficLight:
                     self._color = color_cv
                     self._changed_color = True
                     print("Color in no measure: ", color_cv)
+            """
 
             
 

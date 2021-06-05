@@ -72,8 +72,8 @@ class TrafficLightTracking:
                 if distance<dist: #Lo prendo a minima distanza da me
                     dist = distance
                     next_intersection = point
-        if next_intersection is not None:
-            print("Next Intersection Found: ", next_intersection)
+        #if next_intersection is not None:
+        #    print("Next Intersection Found: ", next_intersection)
         return next_intersection
 
 
@@ -152,7 +152,7 @@ class TrafficLightTracking:
         #Filtra i punti che hanno distanza maggiore di 20 dalla prossima intersezione
         pos_local = from_global_to_local_frame(ego_state, pos_global)
         next_intersection = self.find_next_intersection(ego_state)
-        print("New points: ", pos_global)
+        #print("New points: ", pos_global)
 
         if next_intersection is None: #probably I stay in a curve
             return
@@ -221,7 +221,7 @@ class TrafficLightTracking:
             dist = distance.euclidean(np.array(k), np.array(ego_state[:2]))
             x_l, y_l = from_global_to_local_frame(ego_state, k)
             #add condition that it has to be forward
-            print("Cluster: ", k)
+            #print("Cluster: ", k)
 
             #print("my_distance: ", dist)
             if dist<d and len(self.groups[k])>=self.min_measurements and x_l > 0 and y_l>0:

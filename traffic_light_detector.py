@@ -46,7 +46,7 @@ class TrafficLightDetector:
         if score<self._th_score:
             self.__bbox=None
             return None
-        print("Score: ", score)
+        #print("Score: ", score)
         w,h,_ = img.shape
         self.__class = box.get_label()
         self.__bbox = (int(box.xmin*w), int(box.ymin*h), int(box.xmax*w), int(box.ymax*h))
