@@ -127,17 +127,17 @@ def obstacle_to_world(location, dimensions, orientation):
     
     return box_pts
 
-def waypoint_precise_adder(waypoints, next_waypoint_distance,tolerance,ego_state):
+def waypoint_precise_adder(waypoints, next_waypoint_distance, closest_index, goal_index, tolerance, ego_state):
     
     added_waypoint = [[0,0,0]]
     heading_index = None 
     minor=[np.inf ,np.inf]
-    local=None
+    local=None 
     for i in range(len(waypoints)):
         local=from_global_to_local_frame(ego_state,waypoints[i][:2])
         if local[0] < next_waypoint_distance:
             minor=local
-            pass
+            continue
         if tolerance is not None:
             if abs(next_waypoint_distance-minor[0])<=tolerance:
                 print("Minor waypoint used: " ,waypoints[i-1][:2])
@@ -149,6 +149,8 @@ def waypoint_precise_adder(waypoints, next_waypoint_distance,tolerance,ego_state
                 return i
         heading_index=i
         break
+
+
 
     x_g,y_g = from_local_to_global_frame(ego_state, [next_waypoint_distance,local[1]])
     added_waypoint[0][0] = x_g

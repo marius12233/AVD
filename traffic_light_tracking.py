@@ -165,9 +165,10 @@ class TrafficLightTracking:
 
             return
 
-        #Se la misurazione che sto effettuando sta più avanti dell'incrocio più vicino, skippala
+        #Se la misurazione che sto effettuando sta più avanti dell'incrocio più vicino
+        # oppure sta a sinistra del veicolo, skippala
 
-        if pos_local[0] > next_intersection_local[0]:
+        if pos_local[0] > next_intersection_local[0] or pos_local[0]<0:
             return
 
         d=np.inf
