@@ -44,8 +44,8 @@ from lane_detection_and_following import LaneFollowing
 ###############################################################################
 # CONFIGURABLE PARAMENTERS DURING EXAM
 ###############################################################################
-PLAYER_START_INDEX = 19#120#24#19#24#8#120#8#120#89##124#133#13#6#22#6#135#135#141#66 150         #  spawn index for player
-DESTINATION_INDEX =  90#147#90#143#90#139#63 #139#63#65#55#65#15#55#15#53#53#90#18        # Setting a Destination HERE
+PLAYER_START_INDEX = 24#11#120#151#19#120#24#19#24#8#120#8#120#89##124#133#13#6#22#6#135#135#141#66 150         #  spawn index for player
+DESTINATION_INDEX =  90#64#147#13#90#147#90#143#90#139#63 #139#63#65#55#65#15#55#15#53#53#90#18        # Setting a Destination HERE
 NUM_PEDESTRIANS        = 200      # total number of pedestrians to spawn
 NUM_VEHICLES           = 50      # total number of vehicles to spawn
 SEED_PEDESTRIANS       = 0      # seed for pedestrian spawn randomizer
@@ -101,7 +101,7 @@ PATH_SELECT_WEIGHT     = 10
 A_MAX                  = 2.5              # m/s^2
 SLOW_SPEED             = 2.0              # m/s
 STOP_LINE_BUFFER       = 3.5              # m
-LEAD_VEHICLE_LOOKAHEAD = 20.0             # m
+LEAD_VEHICLE_LOOKAHEAD = 16#20.0             # m
 LP_FREQUENCY_DIVISOR   = 2                # Frequency divisor to make the 
                                           # local planner operate at a lower
                                           # frequency than the controller
@@ -1316,9 +1316,8 @@ def exec_waypoint_nav_demo(args):
                 # Check to see if we need to follow the lead vehicle.
                 #lead_car_idx=None
                 if closest_vehicle_index is not None:
-                    print("#############\nLead car: ", closest_vehicle_index)
-                    print("#############")
-                    bp.check_for_lead_vehicle(ego_state, prob_obs["vehicle"]["pos"][closest_vehicle_index])
+
+                    bp.check_for_lead_vehicle(ego_state, prob_obs["vehicle"]["pos"][closest_vehicle_index], idx=closest_vehicle_index)
                 else:
                     bp.check_for_lead_vehicle(ego_state, None)
                 
@@ -1456,6 +1455,8 @@ def exec_waypoint_nav_demo(args):
                 cmd_steer = 0.0
                 cmd_brake = 0.0
 
+            #if bp._state == behavioural_planner.DECELERATE_TO_STOP:
+            #    cmd_brake = 1
             # Skip the first frame or if there exists no local paths
             if skip_first_frame and frame == 0:
                 pass
@@ -1525,6 +1526,7 @@ def exec_waypoint_nav_demo(args):
                     live_plot_timer.lap()
 
             # Output controller command to CARLA server
+
             send_control_command(client,
                                  throttle=cmd_throttle,
                                  steer=cmd_steer,

@@ -62,6 +62,7 @@ class BehaviouralPlanner:
         self._pedestrian_on_lane=pedestrian_on_lane 
     def set_position_to_stop(self,position_to_stop):
         self._position_to_stop=position_to_stop
+
     def get_follow_lead_vehicle(self):
         return self._follow_lead_vehicle 
 
@@ -205,8 +206,12 @@ class BehaviouralPlanner:
                     goal_index=self._forward_pedestrian[self._closest_pedestrian["index"]]
 
             else:
+                #Aggiungo il waypoint al semaforo
+                print("Aggiungo il waypoint al semaforo")
                 goal_index=waypoint_add_ahead_distance(waypoints,closest_index,goal_index,traffic_light_found_distance,ego_state)    
-                
+                self._traffic_light._changed_color = False
+                self._traffic_light.has_changed = False
+
             self._goal_index = goal_index
             self._goal_state = waypoints[goal_index]
             self._goal_state[2] = 0
@@ -262,7 +267,7 @@ class BehaviouralPlanner:
                 self._goal_state[2] = 0
                 self._state = DECELERATE_TO_STOP
             
-            elif  len(self._opposites)==0:
+            if  try_to_stop_distance==np.Inf and len(self._opposites)==0 and self._traffic_light.get_color()==RED and not self._traffic_light.is_next():
                     self._state = FOLLOW_LANE
             
             
@@ -308,14 +313,14 @@ class BehaviouralPlanner:
             # Sto in questo stato fino a quando la lead_car non si trova dietro di me di tot. metri  
             #Se quello che sta al lead è quello che sto sorpassando, controllare che la distanza da questo diventi almeno -6 metri
             #Sto ancora sorpassando, tutto apposto
-            if not self._overtaking_vehicle[1] == self._lead_car:
+            if not self._overtaking_vehicle[1] == self._lead_car or self._on_current_lane:
                 #Non è più la lead car (si presume sia davanti a me adesso)
                 #Controllare che la distanza diventi almeno 6 metri
                 #print("Overtaking vehicle: ", self._overtaking_vehicle)
                 #print("Lead car: ", self._lead_car)
                 ego_dist = self._overtaking_vehicle[0]
                 #print("Distanza da me: ", ego_dist)
-                if ego_dist < -8 :
+                if ego_dist < -8 or ego_dist > 3: #sta avanti a me o l'ho sorpassato
                     self._overtaking_vehicle = None #L'ho sorpassato
                     self._state = FOLLOW_LANE
             
@@ -460,12 +465,13 @@ class BehaviouralPlanner:
             # If there is an intersection with a stop line, update
             # the goal state to stop before the goal line.
             
-            
+            """
             if self._traffic_light.has_changed:
                 self._traffic_light.has_changed = False
 
             if self._traffic_light._changed_color:
                 self._traffic_light._changed_color = False
+            """
 
             return preferred_distance
 
@@ -533,7 +539,7 @@ class BehaviouralPlanner:
                 
     # Checks to see if we need to modify our velocity profile to accomodate the
     # lead vehicle.
-    def check_for_lead_vehicle(self, ego_state, lead_car_position):
+    def check_for_lead_vehicle(self, ego_state, lead_car_position, idx=None):
         """Checks for lead vehicle within the proximity of the ego car, such
         that the ego car should begin to follow the lead vehicle.
 
@@ -567,6 +573,8 @@ class BehaviouralPlanner:
             # In this case, the car is too far away.   
             if lead_car_distance >  self._follow_lead_vehicle_lookahead:
                 return
+            
+
             print("-----Lead Vehicle Distance:  ", lead_car_distance,"-------",self._follow_lead_vehicle)
             lead_car_delta_vector = np.divide(lead_car_delta_vector, 
                                               lead_car_distance)
@@ -581,7 +589,8 @@ class BehaviouralPlanner:
                       ego_heading_vector) < (1 / math.sqrt(2)):
                 return
             
-
+            print("#############\nLead car: ", idx)
+            print("#############")
             self._follow_lead_vehicle = True
 
         else:
@@ -642,7 +651,7 @@ class BehaviouralPlanner:
                     lookahead_dist=6
 
 
-            print("Lookahead: ", lookahead_dist)
+            #print("Lookahead: ", lookahead_dist)
             diff = abs(ego_angle - pedestrian_angle)
             if diff > math.pi:
                 diff = 2*math.pi - diff
@@ -707,6 +716,8 @@ class BehaviouralPlanner:
     def check_for_pedestrian(self,ego_state, pedestrian_position,pedestrian_bb):
         prob_coll_pedestrian=[]
         for i in range(len( pedestrian_position )):
+            if self._closest_pedestrian and i == self._closest_pedestrian["index"]:
+                continue
             obs_local_pos=from_global_to_local_frame(ego_state,pedestrian_position[i])
             if obs_local_pos[0]>0 and obs_local_pos[0] < 16 and obs_local_pos[1]<3 and obs_local_pos[1]>-3:
                 prob_coll_pedestrian.append(pedestrian_bb[i])
@@ -741,7 +752,6 @@ class BehaviouralPlanner:
             
         return lead_car_idx
 
- 
     def check_overtaking_condition(self, ego_state, ego_orientation, vehicle_positions, vehicle_rot, vehicle_speed):
         """ Tale metodo controlla se ci sono le condizioni per sorpassare un veicolo:
             1- Non ci siano macchine di senso opposto nel giro di tot. metri
@@ -894,9 +904,7 @@ class BehaviouralPlanner:
             #self._follow_lead_vehicle = False
             self._may_overtake = False
             return False
-   
-
-                    
+                       
     def try_to_stop(self,ego_state):
         if self._closest_pedestrian is None:
             return None
