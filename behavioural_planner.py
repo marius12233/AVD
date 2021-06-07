@@ -22,7 +22,7 @@ METER_TO_DECELERATE = 20
 
 STOP_FOR_PEDESTRIAN = 0
 STOP_FOR_TL = 1
-MAX_DIST_TO_STOP = 6
+#MAX_DIST_TO_STOP = 6
 
 class BehaviouralPlanner:
     def __init__(self, lookahead, lead_vehicle_lookahead):
@@ -409,6 +409,7 @@ class BehaviouralPlanner:
         print("STATE: ", self._state)
         print("STOP FOR: ", self._stop_for)
         if self._state == FOLLOW_LANE:
+
             #print("FOLLOW_LANE")
             # First, find the closest index to the ego vehicle.
             closest_len, closest_index = get_closest_index(waypoints, ego_state)
@@ -436,6 +437,7 @@ class BehaviouralPlanner:
                 self._stop_for = None
                 return
             
+
             elif try_to_stop_distance < traffic_light_found_distance: #Mi sto fermando per il pedone
                 print("Aggiorno il waypoint al pedone a una distanza di: ", try_to_stop_distance)              
                 #print("Pedone dista , " , try_to_stop_distance)
@@ -448,7 +450,9 @@ class BehaviouralPlanner:
                 #dove a = -2.5 al massimo.
                 #Se dist_current_stop < dist_preferred_stop: return
                 if traffic_light_found_distance > MAX_DIST_TO_STOP:
+                    print("Distanza a cui mi voglio fermare: ", traffic_light_found_distance)
                     dist_current_stop = closed_loop_speed**2/5
+                    print("Distanza a cui mi fermerò: ", dist_current_stop)
                     if dist_current_stop < traffic_light_found_distance-1: #1 metro di sicurezza
                         print("Vado troppo lento per fermarmi dove voglio")
                         return
