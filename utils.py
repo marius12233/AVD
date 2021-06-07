@@ -133,9 +133,9 @@ def waypoint_precise_adder(waypoints, next_waypoint_distance, closest_index, goa
     heading_index = None 
     minor=[np.inf ,np.inf]
     local=None 
-    for i in range(len(waypoints)):
+    for i in range(closest_index, len(waypoints)):
         local=from_global_to_local_frame(ego_state,waypoints[i][:2])
-        if local[0] < next_waypoint_distance:
+        if local[0] < next_waypoint_distance and abs(local[1])<=2:
             minor=local
             continue
         if tolerance is not None:
@@ -149,8 +149,6 @@ def waypoint_precise_adder(waypoints, next_waypoint_distance, closest_index, goa
                 return i
         heading_index=i
         break
-
-
 
     x_g,y_g = from_local_to_global_frame(ego_state, [next_waypoint_distance,local[1]])
     added_waypoint[0][0] = x_g
