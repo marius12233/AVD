@@ -441,7 +441,9 @@ class BehaviouralPlanner:
             elif try_to_stop_distance < traffic_light_found_distance: #Mi sto fermando per il pedone
                 print("Aggiorno il waypoint al pedone a una distanza di: ", try_to_stop_distance)              
                 #print("Pedone dista , " , try_to_stop_distance)
+                
                 goal_index=waypoint_precise_adder(waypoints,try_to_stop_distance, closest_index, goal_index, 0.1, ego_state)
+                
                 self._stop_for = STOP_FOR_PEDESTRIAN
             else: #Mi sto fermando per il semaforo
                 #Aggiungo il waypoint al semaforo
@@ -481,6 +483,7 @@ class BehaviouralPlanner:
                     try_to_stop_distance=np.inf
 
                 if try_to_stop_distance < from_global_to_local_frame(ego_state, waypoints[goal_index][:2])[0]:
+                    
                     goal_index=waypoint_precise_adder(waypoints,try_to_stop_distance, closest_index, goal_index, 0.1, ego_state)
 
                     self._goal_index = goal_index

@@ -132,25 +132,31 @@ def waypoint_precise_adder(waypoints, next_waypoint_distance, closest_index, goa
     added_waypoint = [[0,0,0]]
     heading_index = None 
     minor=[np.inf ,np.inf]
+    minor_index=None
     local=None 
-    for i in range(closest_index, len(waypoints)):
+    for i in range(closest_index-1, len(waypoints)):
         local=from_global_to_local_frame(ego_state,waypoints[i][:2])
-        if local[0] < next_waypoint_distance and abs(local[1])<=2:
-            minor=local
-            continue
-        if tolerance is not None:
-            if abs(next_waypoint_distance-minor[0])<=tolerance and abs(minor[1])<=1:
-                print("Minor waypoint used: " ,waypoints[i-1][:2])
-                print("minor distance ", minor[0])
-                return i-1
-            elif abs(local[0]-next_waypoint_distance)<=tolerance and abs(local[1])<=1:
-                print("Major waypoint used: " ,waypoints[i][:2])
-                print("major distance ", local[0])
-                return i
-        heading_index=i
-        break
-
-    x_g,y_g = from_local_to_global_frame(ego_state, [next_waypoint_distance,local[1]])
+        if local[0] < next_waypoint_distance :
+            if abs(local[1])<=2:
+                minor=local
+                minor_index=i
+                continue
+        elif local[0] >= next_waypoint_distance :
+            if tolerance is not None and abs(local[1])<=2:
+                if abs(next_waypoint_distance-minor[0])<=tolerance and abs(minor[1])<=2:
+                    print("Minor waypoint used: " ,waypoints[minor_index][:2])
+                    print("minor distance ", minor[0])
+                    return minor_index
+                elif abs(local[0]-next_waypoint_distance)<=tolerance and abs(local[1])<=1:
+                    print("Major waypoint used: " ,waypoints[i][:2])
+                    print("major distance ", local[0])
+                    return i
+            else:
+                heading_index=i
+        if heading_index is not None:
+            break
+    local=from_global_to_local_frame(ego_state,waypoints[heading_index][:2])
+    x_g,y_g = from_local_to_global_frame(ego_state, [next_waypoint_distance,0])
     added_waypoint[0][0] = x_g
     added_waypoint[0][1] = y_g
     added_waypoint[0][2] = waypoints[heading_index][2]
