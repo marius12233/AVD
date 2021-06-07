@@ -139,11 +139,11 @@ def waypoint_precise_adder(waypoints, next_waypoint_distance, closest_index, goa
             minor=local
             continue
         if tolerance is not None:
-            if abs(next_waypoint_distance-minor[0])<=tolerance:
+            if abs(next_waypoint_distance-minor[0])<=tolerance and abs(minor[1])<=1:
                 print("Minor waypoint used: " ,waypoints[i-1][:2])
                 print("minor distance ", minor[0])
                 return i-1
-            elif abs(local[0]-next_waypoint_distance)<=tolerance:
+            elif abs(local[0]-next_waypoint_distance)<=tolerance and abs(local[1])<=1:
                 print("Major waypoint used: " ,waypoints[i][:2])
                 print("major distance ", local[0])
                 return i
