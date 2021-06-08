@@ -17,8 +17,9 @@ STOP_THRESHOLD = 0.03
 # Number of cycles before moving from stop sign.
 STOP_COUNTS = 10
 MAX_DIST_TO_STOP = 7
-MIN_DIST_TO_STOP = 3
+MIN_DIST_TO_STOP = 4
 METER_TO_DECELERATE = 20
+DIST_FROM_PEDESTRIAN = 4
 
 STOP_FOR_PEDESTRIAN = 0
 STOP_FOR_TL = 1
@@ -51,6 +52,7 @@ class BehaviouralPlanner:
         self._forward_pedestrian = {}
         self._intersections_turn = None
         self._stop_for = None #None if you will not stop for tl or ped, 0 for pedestrian, 1 for TL
+        self._pedestrian_stopped_index = None
     
     def set_lookahead(self, lookahead):
         self._lookahead = lookahead
@@ -409,8 +411,16 @@ class BehaviouralPlanner:
         print("STATE: ", self._state)
         print("STOP FOR: ", self._stop_for)
         if self._state == FOLLOW_LANE:
+            
+            #Proviamo a diminuire il lookahead nelle curve per non far allargare troppo l'auto
+
+            if self._nearest_intersection and np.linalg.norm(np.array(self._nearest_intersection[:2]) - np.array(ego_state[:2]) )<=10:
+                is_turn = self._intersections_turn.get(str(self._nearest_intersection[:2]))
+                if is_turn:
+                    self._lookahead=10
 
             #print("FOLLOW_LANE")
+            print("Lookahead: ", self._lookahead)
             # First, find the closest index to the ego vehicle.
             closest_len, closest_index = get_closest_index(waypoints, ego_state)
 
@@ -425,6 +435,7 @@ class BehaviouralPlanner:
             # Check traffic lights
             traffic_light_found_distance = self.check_for_traffic_light(waypoints, closest_index, goal_index, ego_state)
 
+            #Check for pedestrian
             try_to_stop_distance=self.try_to_stop(ego_state)
             
             
@@ -433,7 +444,8 @@ class BehaviouralPlanner:
             if try_to_stop_distance is None:
                 try_to_stop_distance=np.inf
             
-            if try_to_stop_distance == np.inf and  traffic_light_found_distance==np.inf: #Non mi sto fermando
+            if try_to_stop_distance == np.inf and traffic_light_found_distance==np.inf: #Non mi sto fermando
+                self._pedestrian_stopped_index=None
                 self._stop_for = None
                 return
             
@@ -441,10 +453,15 @@ class BehaviouralPlanner:
             elif try_to_stop_distance < traffic_light_found_distance: #Mi sto fermando per il pedone
                 print("Aggiorno il waypoint al pedone a una distanza di: ", try_to_stop_distance)              
                 #print("Pedone dista , " , try_to_stop_distance)
-                
-                goal_index=waypoint_precise_adder(waypoints,try_to_stop_distance, closest_index, goal_index, 0.1, ego_state)
-                
+
+                #goal_index=waypoint_precise_adder(waypoints,try_to_stop_distance, closest_index, goal_index, 0.1, ego_state, offset=0)
+                if self._pedestrian_stopped_index != self._closest_pedestrian["index"]:
+                    goal_index=waypoint_precise_adder(waypoints,try_to_stop_distance, closest_index, goal_index, 0.1, ego_state, offset=0)
+                    self._pedestrian_stopped_index = self._closest_pedestrian["index"]
+
                 self._stop_for = STOP_FOR_PEDESTRIAN
+                
+
             else: #Mi sto fermando per il semaforo
                 #Aggiungo il waypoint al semaforo
                 #Tuttavia se mi fermo al semaforo e sto già praticamente fermo devo andare un pò più avanti
@@ -460,8 +477,10 @@ class BehaviouralPlanner:
                         return
 
                 print("Aggiungo il waypoint al semaforo")
+    
                 goal_index=waypoint_precise_adder(waypoints,traffic_light_found_distance,closest_index, goal_index,0.1,ego_state)    
                 self._stop_for = STOP_FOR_TL
+                self._pedestrian_stopped_index=None
 
             self._goal_index = goal_index
             self._goal_state = waypoints[goal_index]
@@ -473,18 +492,24 @@ class BehaviouralPlanner:
             closest_len, closest_index = get_closest_index(waypoints, ego_state)
             goal_index = self._goal_index
                         
-            #Se mi sto fermando per il pedone, quello che può capitare è che passa un pedone prima di quello per cui mi sto fermando
+            #Se mi sto fermando per il pedone, quello che può capitare è che passa un pedone prima del punto
+            # per cui mi sto fermando
             #Dato che la distanza dal goal index mi dice dove mi fermerò, se il nuovo pedone dista meno del goal index,
             #Allora lo aggiorno
             if self._stop_for==STOP_FOR_PEDESTRIAN:
 
                 try_to_stop_distance=self.try_to_stop(ego_state)
+
                 if try_to_stop_distance is None:
+                    self._pedestrian_stopped_index=None
                     try_to_stop_distance=np.inf
 
                 if try_to_stop_distance < from_global_to_local_frame(ego_state, waypoints[goal_index][:2])[0]:
                     
-                    goal_index=waypoint_precise_adder(waypoints,try_to_stop_distance, closest_index, goal_index, 0.1, ego_state)
+                    #goal_index=waypoint_precise_adder(waypoints,try_to_stop_distance, closest_index, goal_index, 0.1, ego_state, offset=0)
+                    if self._pedestrian_stopped_index != self._closest_pedestrian["index"]:
+                        goal_index=waypoint_precise_adder(waypoints,try_to_stop_distance, closest_index, goal_index, 0.1, ego_state, offset=0)
+                        self._pedestrian_stopped_index = self._closest_pedestrian["index"]
 
                     self._goal_index = goal_index
                     self._goal_state = waypoints[goal_index]
@@ -493,13 +518,39 @@ class BehaviouralPlanner:
 
                 elif try_to_stop_distance == np.Inf: #Se la nuova distanza dal pedone è infinita (Il pedone non c'è più)
                     self._state = FOLLOW_LANE
+                    self._pedestrian_stopped_index=None
                     self._stop_for=None
             
-            elif self._stop_for == STOP_FOR_TL: #Se mi ero fermato per il TL
-                traffic_light_found_distance = self.check_for_traffic_light(waypoints, closest_index, goal_index, ego_state)
-                if traffic_light_found_distance is  None: #Se mi stavo fermando per il tl ma poi la distanza diventa infinita (Il tl è rosso o non è + il prossimo)
-                    self._state = FOLLOW_LANE
-                    self._stop_for=None                    
+            elif self._stop_for == STOP_FOR_TL: #Se mi ero fermato per il TL può succedere che passa un pedone prima
+                #In questo caso devo fermarmi prima ancora del pedone
+
+                try_to_stop_distance=self.try_to_stop(ego_state)
+                if try_to_stop_distance is None:
+                    self._pedestrian_stopped_index=None
+                    try_to_stop_distance=np.inf
+
+                if try_to_stop_distance < from_global_to_local_frame(ego_state, waypoints[goal_index][:2])[0]:
+                    print("Mi stavo fermando per il semaforo -> mi fermo per il pedone")
+                    print("Mi voglio fermare a distanza: ", try_to_stop_distance)
+                    print("Mi fermerò a distanza: ", closed_loop_speed**2/5)
+
+                    #goal_index=waypoint_precise_adder(waypoints,try_to_stop_distance, closest_index, goal_index, 0.1, ego_state, offset=0)
+                    if self._pedestrian_stopped_index != self._closest_pedestrian["index"]:
+                        goal_index=waypoint_precise_adder(waypoints,try_to_stop_distance, closest_index, goal_index, 0.1, ego_state, offset=0)
+                        self._pedestrian_stopped_index = self._closest_pedestrian["index"]
+                    
+                    self._stop_for=STOP_FOR_PEDESTRIAN
+                    self._goal_index = goal_index
+                    self._goal_state = waypoints[goal_index]
+                    self._goal_state[2] = 0
+                    self._state = DECELERATE_TO_STOP
+
+                else: #Se non è passato un pedone prima di dove mi sto fermando controllo se devo fermarmi ancora al semaforo (vedo se è diventato verde!!)
+                    traffic_light_found_distance = self.check_for_traffic_light(waypoints, closest_index, goal_index, ego_state)
+                    if traffic_light_found_distance is  None: #Se mi stavo fermando per il tl ma poi la distanza diventa infinita (Il tl è rosso o non è + il prossimo)
+                        self._state = FOLLOW_LANE
+                        self._pedestrian_stopped_index=None
+                        self._stop_for=None                    
                     
 
             if abs(closed_loop_speed) <= STOP_THRESHOLD and self._state != FOLLOW_LANE:
@@ -514,11 +565,15 @@ class BehaviouralPlanner:
                 if try_to_stop_distance is None:
                     self._stop_for=None
                     self._state = FOLLOW_LANE
+                    self._pedestrian_stopped_index=None
+
             elif self._stop_for == STOP_FOR_TL:
                 traffic_light_found_distance = self.check_for_traffic_light(waypoints, closest_index, goal_index, ego_state)
                 if traffic_light_found_distance is None:
                     self._stop_for=None
                     self._state = FOLLOW_LANE
+                    self._pedestrian_stopped_index=None
+
 
 
 
@@ -868,7 +923,7 @@ class BehaviouralPlanner:
                 prob_coll_vehicle.append(vehicle_bb[i])
 
             if self._overtaking_vehicle is not None and i==self._overtaking_vehicle[1]:
-                prob_coll_vehicle.append(vehicle_bb[i])
+                #prob_coll_vehicle.append(vehicle_bb[i])
                 #Portare il veicolo + avanti
                 #Prendere la locazione
                 obs_local_pos=from_global_to_local_frame(ego_state,vehicle_position[i])
@@ -880,6 +935,17 @@ class BehaviouralPlanner:
                 #Costruire bbox
                 new_bbox = obstacle_to_world(global_pos, vehicle_bbox_extend[i], vehicle_ori[i])
                 prob_coll_vehicle.append(new_bbox)
+            """
+            if i in self._opposites:
+                obs_local_pos=from_global_to_local_frame(ego_state,vehicle_position[i])
+                x=obs_local_pos[0] - vehicle_speed[i]/2 
+                y = obs_local_pos[1]
+                #Ritrasformare in globale
+                global_pos = from_local_to_global_frame(ego_state, [x,y])
+                #Costruire bbox
+                new_bbox = obstacle_to_world(global_pos, vehicle_bbox_extend[i], vehicle_ori[i])
+                prob_coll_vehicle.append(new_bbox)
+            """
 
         return prob_coll_vehicle
     

@@ -44,7 +44,7 @@ from lane_detection_and_following import LaneFollowing
 ###############################################################################
 # CONFIGURABLE PARAMENTERS DURING EXAM
 ###############################################################################
-PLAYER_START_INDEX = 24#11#120#151#19#120#24#19#24#8#120#8#120#89##124#133#13#6#22#6#135#135#141#66 150         #  spawn index for player
+PLAYER_START_INDEX = 17#24#11#120#151#19#120#24#19#24#8#120#8#120#89##124#133#13#6#22#6#135#135#141#66 150         #  spawn index for player
 DESTINATION_INDEX =  90#64#147#13#90#147#90#143#90#139#63 #139#63#65#55#65#15#55#15#53#53#90#18        # Setting a Destination HERE
 NUM_PEDESTRIANS        = 200      # total number of pedestrians to spawn
 NUM_VEHICLES           = 50      # total number of vehicles to spawn
@@ -1372,11 +1372,13 @@ def exec_waypoint_nav_demo(args):
                         cc = lp._collision_checker.collision_check(paths, [bb])
                         collision_check_array=list(np.array(cc) & np.array(collision_check_array))
 
+                    """
                     if sum(collision_check_array)>=2:
                         if bp._state == behavioural_planner.OVERTAKING:
                             collision_check_array[0]=False #TODO: avoid this
                         elif bp._state == behavioural_planner.FOLLOW_LANE:
                             collision_check_array[-1]=False
+                    """
 
                     #if bp._state == behavioural_planner.OVERTAKING: #Se sto ancora sorpassando togli le ultime 3:
 

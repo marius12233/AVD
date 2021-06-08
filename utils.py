@@ -127,14 +127,16 @@ def obstacle_to_world(location, dimensions, orientation):
     
     return box_pts
 
-def waypoint_precise_adder(waypoints, next_waypoint_distance, closest_index, goal_index, tolerance, ego_state):
+def waypoint_precise_adder_old(waypoints, next_waypoint_distance, closest_index, goal_index, tolerance, ego_state):
     
     added_waypoint = [[0,0,0]]
     heading_index = None 
     minor=[np.inf ,np.inf]
     minor_index=None
     local=None 
-    for i in range(closest_index-1, len(waypoints)):
+    print("Closest index: ", closest_index)
+    print("Goal index: ", goal_index)
+    for i in range(closest_index, len(waypoints)):
         local=from_global_to_local_frame(ego_state,waypoints[i][:2])
         if local[0] < next_waypoint_distance :
             if abs(local[1])<=2:
@@ -155,6 +157,9 @@ def waypoint_precise_adder(waypoints, next_waypoint_distance, closest_index, goa
                 heading_index=i
         if heading_index is not None:
             break
+    
+    print("Heading index: ", heading_index)
+
     local=from_global_to_local_frame(ego_state,waypoints[heading_index][:2])
     x_g,y_g = from_local_to_global_frame(ego_state, [next_waypoint_distance,0])
     added_waypoint[0][0] = x_g
@@ -167,7 +172,67 @@ def waypoint_precise_adder(waypoints, next_waypoint_distance, closest_index, goa
     print("Added waypoint in :",waypoints[heading_index][:2])
     return heading_index
 
-        
+#Offset will be used only for traffic lights
+def waypoint_precise_adder(waypoints, next_waypoint_distance, closest_index, goal_index, tolerance, ego_state, offset=0.3):
+    added_waypoint = [[0,0,0]]
+    heading_index = None 
+    minor=[np.inf ,np.inf]
+    minor_index=None
+    local=None 
+    print("Closest index: ", closest_index)
+    print("Goal index: ", goal_index)
 
+    #Se mi sto fermando a un waypoint ma non sono ancora fermo e passo quel waypoint, 
+    #il closest index diventerà  maggiore del goal_index. In questo caso 
+    #restituisco il goal index
+    if closest_index > goal_index:
+        return goal_index
+
+    if goal_index < len(waypoints) -1:
+        goal_index+=1
+    if closest_index > 0:
+        closest_index-=1
+
+    for i in range(closest_index, goal_index):
+        local=from_global_to_local_frame(ego_state,waypoints[i][:2])
+        if local[0] < next_waypoint_distance :
+            minor=local
+            minor_index=i
+            continue
+
+        elif local[0] >= next_waypoint_distance :
+            if tolerance is not None:
+                if abs(next_waypoint_distance-minor[0])<=tolerance:
+                    print("Minor waypoint used: " ,waypoints[minor_index][:2])
+                    print("minor distance ", minor[0])
+                    return minor_index
+                elif abs(local[0]-next_waypoint_distance)<=tolerance:
+                    print("Major waypoint used: " ,waypoints[i][:2])
+                    print("major distance ", local[0])
+                    return i
+            
+                heading_index=i
+            else:
+                heading_index=i
+
+        if heading_index is not None:
+            break
+    
+    print("Heading index: ", heading_index)
+
+    if heading_index is None:
+        return goal_index
+
+    local=from_global_to_local_frame(ego_state,waypoints[heading_index][:2])
+    x_g,y_g = from_local_to_global_frame(ego_state, [next_waypoint_distance,local[1]+offset]) #Aggiungo mezzo metro a sinistra in moido che la macchina riesca a vedere il semaforo anche con la right
+    added_waypoint[0][0] = x_g
+    added_waypoint[0][1] = y_g
+    added_waypoint[0][2] = waypoints[heading_index][2]
+    temp = waypoints[heading_index:]
+    waypoints.resize((len(waypoints)+1, 3), refcheck = False )
+    waypoints[heading_index:heading_index+1] = np.array(added_waypoint)
+    waypoints[heading_index+1:] = temp
+    print("Added waypoint in :",waypoints[heading_index][:2])
+    return heading_index
 
         
