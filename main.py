@@ -44,8 +44,8 @@ from lane_detection_and_following import LaneFollowing
 ###############################################################################
 # CONFIGURABLE PARAMENTERS DURING EXAM
 ###############################################################################
-PLAYER_START_INDEX = 17#24#11#120#151#19#120#24#19#24#8#120#8#120#89##124#133#13#6#22#6#135#135#141#66 150         #  spawn index for player
-DESTINATION_INDEX =  90#64#147#13#90#147#90#143#90#139#63 #139#63#65#55#65#15#55#15#53#53#90#18        # Setting a Destination HERE
+PLAYER_START_INDEX = 24#147#24#17#24#11#120#151#19#120#24#19#24#8#120#8#120#89##124#133#13#6#22#6#135#135#141#66 150         #  spawn index for player
+DESTINATION_INDEX =  90#151#90#64#147#13#90#147#90#143#90#139#63 #139#63#65#55#65#15#55#15#53#53#90#18        # Setting a Destination HERE
 NUM_PEDESTRIANS        = 200      # total number of pedestrians to spawn
 NUM_VEHICLES           = 50      # total number of vehicles to spawn
 SEED_PEDESTRIANS       = 0      # seed for pedestrian spawn randomizer
@@ -708,8 +708,8 @@ def exec_waypoint_nav_demo(args):
 
         waypoints = []
         waypoints_route = mission_planner.compute_route(source, source_ori, destination, destination_ori)
-        desired_speed = 10.0
-        turn_speed    = 2.0
+        desired_speed = 8.0
+        turn_speed    = 3.0
 
         intersection_nodes = mission_planner.get_intersection_nodes()
         
@@ -1457,8 +1457,10 @@ def exec_waypoint_nav_demo(args):
                 cmd_steer = 0.0
                 cmd_brake = 0.0
 
-            #if bp._state == behavioural_planner.DECELERATE_TO_STOP:
-            #    cmd_brake = 1
+            if bp._state == behavioural_planner.EMERGENCY_STOP:
+                cmd_throttle = 0.0
+                cmd_brake = 1
+
             # Skip the first frame or if there exists no local paths
             if skip_first_frame and frame == 0:
                 pass
