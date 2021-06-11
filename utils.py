@@ -173,7 +173,7 @@ def waypoint_precise_adder_old(waypoints, next_waypoint_distance, closest_index,
     return heading_index
 
 #Offset will be used only for traffic lights
-def waypoint_precise_adder(waypoints, next_waypoint_distance, closest_index, goal_index, tolerance, ego_state, offset=0.3):
+def waypoint_precise_adder(waypoints, next_waypoint_distance, closest_index, goal_index, tolerance, ego_state, offset=0.1):
     added_waypoint = [[0,0,0]]
     heading_index = None 
     minor=[np.inf ,np.inf]
@@ -223,8 +223,9 @@ def waypoint_precise_adder(waypoints, next_waypoint_distance, closest_index, goa
     if heading_index is None:
         return goal_index
 
-    local=from_global_to_local_frame(ego_state,waypoints[heading_index][:2])
-    x_g,y_g = from_local_to_global_frame(ego_state, [next_waypoint_distance,local[1]+offset]) #Aggiungo mezzo metro a sinistra in moido che la macchina riesca a vedere il semaforo anche con la right
+    position_index = heading_index - 1 if heading_index > 0 else heading_index #Proviamo a mettere la posizione del waypoint precedente
+    local=from_global_to_local_frame(ego_state,waypoints[position_index][:2])
+    x_g,y_g = from_local_to_global_frame(ego_state, [next_waypoint_distance,local[1]+offset]) 
     added_waypoint[0][0] = x_g
     added_waypoint[0][1] = y_g
     added_waypoint[0][2] = waypoints[heading_index][2]

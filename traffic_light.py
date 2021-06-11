@@ -22,6 +22,7 @@ class TrafficLight:
         self._bbox = None
         self._complete_img = None
         self._seg_img = None
+        self._prev_ok = False
     
     def set_complete_image(self, complete_img):
         self._complete_img = complete_img
@@ -60,10 +61,14 @@ class TrafficLight:
         if self._last_img_cropped is not None:
             img = self._get_tl_by_img()
             color_cv = traffic_color_detection(img)
+            #Se il colore non è riuscito a prenderlo bene da una telecamera il parametro prev ok viene messo a False
+            #e posso pensare di usare l'altra telecamera
             if color_cv is not None:
                 color = color_cv 
+                self._prev_ok = True
             else:
                 color = self._color
+                self._prev_ok = False
             print("COLOR: ", "RED" if color else "GREEN" )
 
         if not color == self._color:

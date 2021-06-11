@@ -44,8 +44,8 @@ from lane_detection_and_following import LaneFollowing
 ###############################################################################
 # CONFIGURABLE PARAMENTERS DURING EXAM
 ###############################################################################
-PLAYER_START_INDEX = 24#147#24#17#24#11#120#151#19#120#24#19#24#8#120#8#120#89##124#133#13#6#22#6#135#135#141#66 150         #  spawn index for player
-DESTINATION_INDEX =  90#151#90#64#147#13#90#147#90#143#90#139#63 #139#63#65#55#65#15#55#15#53#53#90#18        # Setting a Destination HERE
+PLAYER_START_INDEX = 139#24#139#24#147#24#17#24#11#120#151#19#120#24#19#24#8#120#8#120#89##124#133#13#6#22#6#135#135#141#66 150         #  spawn index for player
+DESTINATION_INDEX =  59#145#59#90#151#90#64#147#13#90#147#90#143#90#139#63 #139#63#65#55#65#15#55#15#53#53#90#18        # Setting a Destination HERE
 NUM_PEDESTRIANS        = 200      # total number of pedestrians to spawn
 NUM_VEHICLES           = 50      # total number of vehicles to spawn
 SEED_PEDESTRIANS       = 0      # seed for pedestrian spawn randomizer
@@ -1248,7 +1248,9 @@ def exec_waypoint_nav_demo(args):
                         traffic_light.set_seg_img(labels_to_array(segmentation_data_r))
 
                         bp.set_traffic_light(traffic_light)
-                    else: #Se non c'è la detection della camera destra vado con la centrale
+
+                    #Ho bisogno di dire che res_r deve essere None perché può darsi che il prev ok di prima era ok ma poi il res_r corrente non c'è 
+                    if res_r is None or not traffic_light._prev_ok: #Se non c'è la detection della camera destra oppure con quella non vedo bene il colore vado con la centrale 
                         if vehicle_bbox_traffic_light is not None:
                             #print("Clusters: ", tl_tracking.get_clusters())
                             if res is not None:

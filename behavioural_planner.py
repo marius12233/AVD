@@ -411,14 +411,16 @@ class BehaviouralPlanner:
     def transition_state(self, waypoints, ego_state, closed_loop_speed):
         print("STATE: ", self._state)
         print("STOP FOR: ", self._stop_for)
+
         if self._state == FOLLOW_LANE:
             
             #Proviamo a diminuire il lookahead nelle curve per non far allargare troppo l'auto
-
+            
             if self._nearest_intersection and np.linalg.norm(np.array(self._nearest_intersection[:2]) - np.array(ego_state[:2]) )<=10:
                 is_turn = self._intersections_turn.get(str(self._nearest_intersection[:2]))
                 if is_turn:
-                    self._lookahead=10
+                    self._lookahead=15
+            
 
             #print("FOLLOW_LANE")
             print("Lookahead: ", self._lookahead)
@@ -487,6 +489,7 @@ class BehaviouralPlanner:
         elif self._state == DECELERATE_TO_STOP:
             closest_len, closest_index = get_closest_index(waypoints, ego_state)
             goal_index = self._goal_index
+            print("Goal index {} speed: {} ".format(goal_index, waypoints[goal_index][2]))
                         
             #Se mi sto fermando per il pedone, quello che può capitare è che passa un pedone prima del punto
             # per cui mi sto fermando
@@ -542,29 +545,38 @@ class BehaviouralPlanner:
                     self._pedestrian_stopped_index=None
                     try_to_stop_distance=np.inf
 
+                d_real = closed_loop_speed**2/5
                 if try_to_stop_distance < from_global_to_local_frame(ego_state, waypoints[goal_index][:2])[0]:
                     print("Mi stavo fermando per il semaforo -> mi fermo per il pedone")
                     print("Mi voglio fermare a distanza: ", try_to_stop_distance)
-                    d_real = closed_loop_speed**2/5
+                    
                     print("Mi fermerò a distanza: ", d_real)
 
                     #goal_index=waypoint_precise_adder(waypoints,try_to_stop_distance, closest_index, goal_index, 0.1, ego_state, offset=0)
                     self._pedestrian_stopped_index = self._closest_pedestrian["index"]
                     
                     self._stop_for=STOP_FOR_PEDESTRIAN
+
+                    goal_index=waypoint_precise_adder(waypoints,try_to_stop_distance, closest_index, goal_index, 0.1, ego_state, offset=0)
+
                     self._goal_index = goal_index
                     self._goal_state = waypoints[goal_index]
-                    self._goal_state[2] = 0
-                    self._state = DECELERATE_TO_STOP
+                    self._goal_state[2] = 0 
 
                     if d_real > try_to_stop_distance:
+                        print("dist real: ", d_real)
                         self._state = EMERGENCY_STOP
+
 
                 else: #Se non è passato un pedone prima di dove mi sto fermando controllo se devo fermarmi ancora al semaforo (vedo se è diventato verde!!)
                     traffic_light_found_distance = self.check_for_traffic_light(waypoints, closest_index, goal_index, ego_state)
                     if traffic_light_found_distance is  None: #Se mi stavo fermando per il tl ma poi la distanza diventa infinita (Il tl è rosso o non è + il prossimo)
                         self._state = FOLLOW_LANE
-                        self._stop_for=None                    
+                        self._stop_for=None   
+                    else:
+                        if d_real > traffic_light_found_distance and traffic_light_found_distance <= MIN_DIST_TO_STOP -1 : #se sto a 1 metro di min dist to stop e non mi riesco a fermare ancora in tempo allora vado in EMERGENCY STOP
+                            self._state = EMERGENCY_STOP
+
                     
 
             if abs(closed_loop_speed) <= STOP_THRESHOLD and self._state != FOLLOW_LANE:
@@ -572,6 +584,7 @@ class BehaviouralPlanner:
 
 
         elif self._state == STAY_STOPPED:
+            
             closest_len, closest_index = get_closest_index(waypoints, ego_state)
             goal_index = self._goal_index
             if self._stop_for == STOP_FOR_PEDESTRIAN: #Se mi ero fermato per il pedone
