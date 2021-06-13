@@ -39,7 +39,7 @@ class TrafficLight:
         return False
     
     def get_pos(self):
-        return self._pos
+        return self._cluster_belongs#self._pos
     
     def get_color(self):
         return self._color

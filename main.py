@@ -40,12 +40,13 @@ from traffic_light_detector_world import TrafficLightDetectorWorld
 from traffic_light_tracking import TrafficLightTracking
 from traffic_light import TrafficLight
 from lane_detection_and_following import LaneFollowing
+from sidewalk_detection_world import SidewalkFollowing
 
 ###############################################################################
 # CONFIGURABLE PARAMENTERS DURING EXAM
 ###############################################################################
-PLAYER_START_INDEX = 139#24#139#24#147#24#17#24#11#120#151#19#120#24#19#24#8#120#8#120#89##124#133#13#6#22#6#135#135#141#66 150         #  spawn index for player
-DESTINATION_INDEX =  59#145#59#90#151#90#64#147#13#90#147#90#143#90#139#63 #139#63#65#55#65#15#55#15#53#53#90#18        # Setting a Destination HERE
+PLAYER_START_INDEX = 2#133#2#7#24#24#139#24#147#24#17#24#11#120#151#19#120#24#19#24#8#120#8#120#89##124#133#13#6#22#6#135#135#141#66 150         #  spawn index for player
+DESTINATION_INDEX =  23#63#23#15#145#145#59#90#151#90#64#147#13#90#147#90#143#90#139#63 #139#63#65#55#65#15#55#15#53#53#90#18        # Setting a Destination HERE
 NUM_PEDESTRIANS        = 200      # total number of pedestrians to spawn
 NUM_VEHICLES           = 50      # total number of vehicles to spawn
 SEED_PEDESTRIANS       = 0      # seed for pedestrian spawn randomizer
@@ -969,13 +970,18 @@ def exec_waypoint_nav_demo(args):
         bp = behavioural_planner.BehaviouralPlanner(BP_LOOKAHEAD_BASE,
                                                     LEAD_VEHICLE_LOOKAHEAD)
         bp.set_intersections_turn(intersections_turn)
-        lane_following = LaneFollowing(camera_parameters)
+        
         #############################################
         # Perception modules
         #############################################
         model = load_model()
 
+        sidewalk_following = SidewalkFollowing(camera_parameters)
+        lane_following = LaneFollowing(camera_parameters)
+
         traffic_light = TrafficLight()
+        bp.set_traffic_light(traffic_light)
+
         tl_detector = TrafficLightDetectorWorld(camera_parameters, model)
         tl_right_detector = TrafficLightDetectorWorld(camera_parameters_right, model)
 
@@ -1145,6 +1151,11 @@ def exec_waypoint_nav_demo(args):
                 ego_x, ego_y, _, _, _, ego_yaw = get_current_pose(measurement_data)
                 ego_state = [ego_x, ego_y, ego_yaw] #TODO vehicle location
                 
+                ##############Sidewalk tracking
+                sidewalk_point = sidewalk_following.detect(labels_to_array(segmentation_data),depth_data, show_lines=True, image_rgb=camera_data)
+                if sidewalk_point is not None and len(sidewalk_point)>0:
+                    sidewalk_point = from_local_to_global_frame(ego_state, sidewalk_point[:2])
+                    #visualize_point(map, sidewalk_point[0], sidewalk_point[1], 10, img_map, color=(0,0,0))
 
                 point_on_lane = lane_following.detect(labels_to_array(segmentation_data),depth_data, show_lines=True, image_rgb=camera_data)
                 #point_on_lane = from_local_to_global_frame(ego_state, point_on_lane[:2])
@@ -1165,6 +1176,7 @@ def exec_waypoint_nav_demo(args):
                 
 
                 res, res_r, kf_pos = [None]*3
+                zr = 38
 
                 #Visualize traffic light point on world
                 if vehicle_bbox_traffic_light is not None:
@@ -1173,7 +1185,6 @@ def exec_waypoint_nav_demo(args):
                     #point_max = vehicle_bbox_traffic_light[1]#Prendiamo il punto in alto a sx
                     #xmax,ymax,v = point_max
                     x,y,v = vehicle_bbox_traffic_light[0]
-                    z=38
 
                     #Transformation
                     x_global = ego_state[0] + x*cos(ego_state[2]) - \
@@ -1183,20 +1194,21 @@ def exec_waypoint_nav_demo(args):
                     
                     #print("Global coordinates: ", (x_global, y_global))
                     tl_tracking.track(ego_state, (x,y), tl_detector.is_red())
-                    kf_pos = tl_tracking.get_kf_pos()
+                    #kf_pos = tl_tracking.get_kf_pos()
 
 
                     nearest_tl = tl_tracking.get_nearest_tl(ego_state)
                     if nearest_tl is not None:
                         res, cluster_res = nearest_tl
-                        traffic_light.update(res[0], res[1], cluster_res)
+                        #traffic_light.update(res[0], res[1], cluster_res)
+                        
                     #else:
                         #print("Traffic light not found: Clusters: ", tl_tracking.get_clusters())
 
 
 
                     #if abs(x) < 40 and abs(y)<40:
-                    visualize_point(map, x_global, y_global, z, img_map, color=(0,225,225))
+                    visualize_point(map, x_global, y_global, zr, img_map, color=(0,225,225))
 
                 #print("Local coordinates traffic lights: ", vehicle_bbox_traffic_light)
                 #Visualize traffic light point on world
@@ -1206,7 +1218,6 @@ def exec_waypoint_nav_demo(args):
                     #point_max = vehicle_bbox_traffic_light[1]#Prendiamo il punto in alto a sx
                     #xmax,ymax,v = point_max
                     xr,yr,vr = vehicle_bbox_traffic_light_r[0]
-                    zr=38
                     
                     #Transformation
                     x_globalr = ego_state[0] + xr*cos(ego_state[2]) - \
@@ -1229,7 +1240,7 @@ def exec_waypoint_nav_demo(args):
                     nearest_tl = tl_tracking.get_nearest_tl(ego_state)
                     if nearest_tl is not None:
                         res_r, cluster_res_r = nearest_tl
-                        traffic_light.update(res_r[0], res_r[1], cluster_res_r)
+                        #traffic_light.update(res_r[0], res_r[1], cluster_res_r)
                     else:
                         clusters = tl_tracking.get_clusters()
                         #print("Traffic light not found: Clusters: ", tl_tracking.get_clusters())
@@ -1237,17 +1248,22 @@ def exec_waypoint_nav_demo(args):
                     #if abs(xr) < 60 and abs(yr)<60:
                     visualize_point(map, x_globalr, y_globalr, zr, img_map, color=(225,225,0), text=False)
                     
-
+                print("Clusters: ", tl_tracking.get_clusters())
+                print("Nearest cluster: ", tl_tracking.get_nearest_tl(ego_state))
+                if tl_tracking.get_nearest_tl(ego_state) is not None:
+                    visualize_point(map, tl_tracking.get_nearest_tl(ego_state)[1][0], tl_tracking.get_nearest_tl(ego_state)[1][1], 1, img_map, color=(0,0,0))
                 if vehicle_bbox_traffic_light_r is not None:
                     if res_r is not None:
-                        visualize_point(map, int(res_r[0][0]), int(res_r[0][1]), zr, img_map, color=(238,130,238), r=10)
+                        visualize_point(map, res_r[0][0], res_r[0][1], zr, img_map, color=(238,130,238), r=10)
                         traffic_light._last_img_cropped = tl_right_detector.get_img_cropped()
                         traffic_light._last_mask_cropped = tl_right_detector._mask
+                        traffic_light.update(res_r[0], res_r[1], cluster_res_r)
+
                         traffic_light.set_complete_image(camera_data_r )
                         traffic_light.set_bbox(tl_right_detector.get_enlarged_bbox())
                         traffic_light.set_seg_img(labels_to_array(segmentation_data_r))
 
-                        bp.set_traffic_light(traffic_light)
+                        #bp.set_traffic_light(traffic_light)
 
                     #Ho bisogno di dire che res_r deve essere None perché può darsi che il prev ok di prima era ok ma poi il res_r corrente non c'è 
                     if res_r is None or not traffic_light._prev_ok: #Se non c'è la detection della camera destra oppure con quella non vedo bene il colore vado con la centrale 
@@ -1255,26 +1271,32 @@ def exec_waypoint_nav_demo(args):
                             #print("Clusters: ", tl_tracking.get_clusters())
                             if res is not None:
                                 #print("RESULT: ", res)
+                                visualize_point(map, res[0][0], res[0][1], zr, img_map, color=(238,130,238), r=10)
                                 traffic_light._last_img_cropped = tl_detector.get_img_cropped()
                                 traffic_light._last_mask_cropped = tl_detector._mask
+                                traffic_light.update(res[0], res[1], cluster_res)
+
                                 traffic_light.set_complete_image(camera_data)
                                 traffic_light.set_bbox(tl_detector.get_enlarged_bbox())
                                 traffic_light.set_seg_img(labels_to_array(segmentation_data))
 
-                                bp.set_traffic_light(traffic_light)
+                                #bp.set_traffic_light(traffic_light)
                 
                 elif vehicle_bbox_traffic_light is not None:
                     
                     #print("Clusters: ", tl_tracking.get_clusters())
                     if res is not None:
                        # print("RESULT: ", res)
+                        visualize_point(map, res[0][0], res[0][1], zr, img_map, color=(238,130,238), r=10)
                         traffic_light._last_img_cropped = tl_detector.get_img_cropped()
                         traffic_light._last_mask_cropped = tl_detector._mask
+                        traffic_light.update(res[0], res[1], cluster_res)
+
                         traffic_light.set_complete_image(camera_data)
                         traffic_light.set_bbox(tl_detector.get_enlarged_bbox())
                         traffic_light.set_seg_img(labels_to_array(segmentation_data))
 
-                        bp.set_traffic_light(traffic_light)
+                        #bp.set_traffic_light(traffic_light)
                 
                 else:
                     #print("No traffic Light")

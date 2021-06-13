@@ -225,7 +225,7 @@ class TrafficLightTracking:
             #print("Cluster: ", k)
 
             #print("my_distance: ", dist)
-            if dist<d and len(self.groups[k])>=self.min_measurements and x_l > 0 and y_l>0:
+            if dist<d and len(self.groups[k])>=self.min_measurements and x_l > 0:# and y_l>0:
                 d = dist
                 min_dist_elem = k
         

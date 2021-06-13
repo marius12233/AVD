@@ -416,7 +416,7 @@ class BehaviouralPlanner:
             
             #Proviamo a diminuire il lookahead nelle curve per non far allargare troppo l'auto
             
-            if self._nearest_intersection and np.linalg.norm(np.array(self._nearest_intersection[:2]) - np.array(ego_state[:2]) )<=10:
+            if self._nearest_intersection and np.linalg.norm(np.array(self._nearest_intersection[:2]) - np.array(ego_state[:2]) )<=20:
                 is_turn = self._intersections_turn.get(str(self._nearest_intersection[:2]))
                 if is_turn:
                     self._lookahead=15
@@ -436,7 +436,7 @@ class BehaviouralPlanner:
             self._goal_state = waypoints[goal_index]
 
             # Check traffic lights
-            traffic_light_found_distance = self.check_for_traffic_light(waypoints, closest_index, goal_index, ego_state)
+            traffic_light_found_distance = self.check_for_traffic_light(waypoints, closest_index, goal_index, ego_state, use_lookahead=True)
 
             #Check for pedestrian
             try_to_stop_distance=self.try_to_stop(ego_state)
@@ -471,7 +471,7 @@ class BehaviouralPlanner:
                 if traffic_light_found_distance > MAX_DIST_TO_STOP:
                     print("Distanza a cui mi voglio fermare: ", traffic_light_found_distance)
                     print("Distanza a cui mi fermerò: ", d_real)
-                    if d_real < traffic_light_found_distance: #1 metro di sicurezza
+                    if d_real < traffic_light_found_distance + 0.5: 
                         print("Vado troppo lento per fermarmi dove voglio")
                         return
 
@@ -569,8 +569,8 @@ class BehaviouralPlanner:
 
 
                 else: #Se non è passato un pedone prima di dove mi sto fermando controllo se devo fermarmi ancora al semaforo (vedo se è diventato verde!!)
-                    traffic_light_found_distance = self.check_for_traffic_light(waypoints, closest_index, goal_index, ego_state)
-                    if traffic_light_found_distance is  None: #Se mi stavo fermando per il tl ma poi la distanza diventa infinita (Il tl è rosso o non è + il prossimo)
+                    traffic_light_found_distance = self.check_for_traffic_light(waypoints, closest_index, goal_index, ego_state, use_lookahead=False)
+                    if traffic_light_found_distance is  None: #Se mi stavo fermando per il tl ma poi la distanza diventa infinita (Il tl è verde o non è + il prossimo)
                         self._state = FOLLOW_LANE
                         self._stop_for=None   
                     else:
@@ -595,7 +595,7 @@ class BehaviouralPlanner:
                     self._pedestrian_stopped_index=None
 
             elif self._stop_for == STOP_FOR_TL:
-                traffic_light_found_distance = self.check_for_traffic_light(waypoints, closest_index, goal_index, ego_state)
+                traffic_light_found_distance = self.check_for_traffic_light(waypoints, closest_index, goal_index, ego_state, use_lookahead=False)
                 if traffic_light_found_distance is None:
                     self._stop_for=None
                     self._state = FOLLOW_LANE
@@ -646,7 +646,7 @@ class BehaviouralPlanner:
         
 
 
-    def check_for_traffic_light(self, waypoints, closest_index, goal_index, ego_state):
+    def check_for_traffic_light(self, waypoints, closest_index, goal_index, ego_state, use_lookahead=True):
         """Checks for a stop sign that is intervening the goal path.
 
         Checks for a stop sign that is intervening the goal path. Returns a new
@@ -679,7 +679,7 @@ class BehaviouralPlanner:
         """
         print("CHECK FOR TRAFFIC LIGHT")
         if self._traffic_light is None:
-            #print("TL is None")
+            print("TL is None")
             return None
         
         print("STATO SEMAFORO: is next: {}, color:{}, changed:{}, changed color:{}"
@@ -692,21 +692,21 @@ class BehaviouralPlanner:
         
         #Se il semaforo corrente non è più il prossimo dici che non c'è
         if not self._traffic_light.is_next():
-            #print("Is not the next")
+            print("Is not the next")
             return None
 
         #Col verde non facciamo niente
         color = self._traffic_light.get_color()
         if color == GREEN:
-            #print("SEMAFORO VERDE! skip")
+            print("SEMAFORO VERDE! skip")
             return None
         
 
         s = np.array(self._traffic_light.get_pos()[0:2])
         s_local = from_global_to_local_frame(ego_state, s)
         
-        if s_local[0] > self._lookahead: #Non sono arrivato col veicolo a guardare i waypoints nel range specificato
-            #print("Non sono nel lookahead")
+        if use_lookahead and s_local[0] > self._lookahead: #Non sono arrivato col veicolo a guardare i waypoints nel range specificato (usato solo quando sto in follow lane)
+            print("Non sono nel lookahead")
             return None
 
         
