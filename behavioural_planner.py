@@ -55,6 +55,7 @@ class BehaviouralPlanner:
         self._intersections_turn = None
         self._stop_for = None #None if you will not stop for tl or ped, 0 for pedestrian, 1 for TL
         self._pedestrian_stopped_index = None
+        self._lanes = None #[[m1,b1],[m2,b2]]
     
     def set_lookahead(self, lookahead):
         self._lookahead = lookahead

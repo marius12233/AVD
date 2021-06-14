@@ -6,6 +6,7 @@ import cv2
 import numpy as np
 from math import cos, sin, pi,tan
 from sidewalk_detection import sidewalk_detection
+from utils import from_local_to_global_frame
 
 #   Required to import carla library
 import os
@@ -90,9 +91,8 @@ class SidewalkFollowing:
         self.image_to_camera_frame = lambda object_camera_frame: np.dot(image_camera_frame , object_camera_frame)
         
 
-    def detect(self, image, depth_data, speed_limit = 5.0, image_rgb = None, show_lines = False):
+    def detect(self, image, depth_data, ego_state, speed_limit = 5.0, image_rgb = None, show_lines = False,):
         height, width = image.shape
-        vehicle_frame_list = []
 
         road_mask = np.zeros((image.shape[0],image.shape[1]), np.uint8)
     
@@ -120,63 +120,81 @@ class SidewalkFollowing:
             print("No point on sidewalk!")
             return []
         #print(lanes)
-        x1,y1,x2,y2 = lanes[len(lanes)//2,0]
+
         lane_image = np.zeros((image.shape[0],image.shape[1]), np.uint8)
+        global_lanes = []
+        #global_points = []
+
         for lane in lanes:
             x1,y1,x2,y2 = lane[0]
             cv2.line(lane_image, (x1,y1),(x2,y2), (255, 0, 0), 10)
+
+            #Compute points in global
+            x1,y1 = self.convert_point(x1, y1, depth_data, ego_state)
+            x2,y2 = self.convert_point(x2, y2, depth_data, ego_state)
+
+            #global_points.append([(x1,y1), (x2,y2)])
+
+            #Compute m and b to obtain: y = mx+b
+            if x1==x2:
+                continue
+            
+            m = (y2-y1)/(x2-x1)
+            b = y2 - m*x2
+            global_lanes.append([m, b])
+            
+
         cv2.imshow("Lane Sidewalk", lane_image)
         cv2.waitKey(10)
+        print("Global lanes: ", global_lanes)
 
 
-        #points = list(zip([x1,y1))
+        return global_lanes
 
-        for x,y in zip([x1],[y1]):
-            # From pixel to waypoint
 
-            pixel = [x , y, 1]
-            pixel = np.reshape(pixel, (3,1))
-            
+    def convert_point(self, x, y, depth_data, ego_state):
 
-            # Projection Pixel to Image Frame
-            depth = depth_data[y][x] * 1000  # Consider depth in meters    
+        pixel = [x , y, 1]
+        pixel = np.reshape(pixel, (3,1))
+        
 
-            image_frame_vect = np.dot(self.inv_intrinsic_matrix, pixel) * depth
-            
-            # Create extended vector
-            image_frame_vect_extended = np.zeros((4,1))
-            image_frame_vect_extended[:3] = image_frame_vect 
-            image_frame_vect_extended[-1] = 1
-            
-            # Projection Camera to Vehicle Frame
-            camera_frame = self.image_to_camera_frame(image_frame_vect_extended)
-            camera_frame = camera_frame[:3]
-            camera_frame = np.asarray(np.reshape(camera_frame, (1,3)))
+        # Projection Pixel to Image Frame
+        depth = depth_data[y][x] * 1000  # Consider depth in meters    
 
-            camera_frame_extended = np.zeros((4,1))
-            camera_frame_extended[:3] = camera_frame.T 
-            camera_frame_extended[-1] = 1
+        image_frame_vect = np.dot(self.inv_intrinsic_matrix, pixel) * depth
+        
+        # Create extended vector
+        image_frame_vect_extended = np.zeros((4,1))
+        image_frame_vect_extended[:3] = image_frame_vect 
+        image_frame_vect_extended[-1] = 1
+        
+        # Projection Camera to Vehicle Frame
+        camera_frame = self.image_to_camera_frame(image_frame_vect_extended)
+        camera_frame = camera_frame[:3]
+        camera_frame = np.asarray(np.reshape(camera_frame, (1,3)))
 
-            camera_to_vehicle_frame = np.zeros((4,4))
-            camera_to_vehicle_frame[:3,:3] = to_rot([self.cam_pitch, self.cam_yaw, self.cam_roll])
-            camera_to_vehicle_frame[:,-1] = [self.cam_x_pos, self.cam_y_pos, self.cam_height, 1]
+        camera_frame_extended = np.zeros((4,1))
+        camera_frame_extended[:3] = camera_frame.T 
+        camera_frame_extended[-1] = 1
 
-            vehicle_frame = np.dot(camera_to_vehicle_frame,camera_frame_extended )
-            vehicle_frame = vehicle_frame[:3]
-            vehicle_frame = np.asarray(np.reshape(vehicle_frame, (1,3)))
+        camera_to_vehicle_frame = np.zeros((4,4))
+        camera_to_vehicle_frame[:3,:3] = to_rot([self.cam_pitch, self.cam_yaw, self.cam_roll])
+        camera_to_vehicle_frame[:,-1] = [self.cam_x_pos, self.cam_y_pos, self.cam_height, 1]
 
-            # Add to vehicle frame list
-            if abs(vehicle_frame[0][1]) < 0.5:
-                # Avoid small correction for a smoother driving 
-                vehicle_frame_y = 0
-                vehicle_frame_x = 1.5
-            else:
-                vehicle_frame_y = vehicle_frame[0][1]
-                vehicle_frame_x = vehicle_frame[0][0] - 1.5
-            
-            # -vehicle_frame_y for the inversion of the axis with the guide
-            vehicle_frame_list.append([vehicle_frame_x,-vehicle_frame_y , speed_limit])
+        vehicle_frame = np.dot(camera_to_vehicle_frame,camera_frame_extended )
+        vehicle_frame = vehicle_frame[:3]
+        vehicle_frame = np.asarray(np.reshape(vehicle_frame, (1,3)))
 
-            # print(vehicle_frame_list)
-        return vehicle_frame_list[0]  
+        # Add to vehicle frame list
+        if abs(vehicle_frame[0][1]) < 0.5:
+            # Avoid small correction for a smoother driving 
+            vehicle_frame_y = 0
+            vehicle_frame_x = 1.5
+        else:
+            vehicle_frame_y = vehicle_frame[0][1]
+            vehicle_frame_x = vehicle_frame[0][0] - 1.5
+        
+        vehicle_frame_point = np.array([vehicle_frame_x,-vehicle_frame_y])
+        global_frame_point = from_local_to_global_frame(ego_state, vehicle_frame_point)
 
+        return global_frame_point

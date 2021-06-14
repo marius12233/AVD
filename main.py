@@ -1152,9 +1152,10 @@ def exec_waypoint_nav_demo(args):
                 ego_state = [ego_x, ego_y, ego_yaw] #TODO vehicle location
                 
                 ##############Sidewalk tracking
-                sidewalk_point = sidewalk_following.detect(labels_to_array(segmentation_data),depth_data, show_lines=True, image_rgb=camera_data)
-                if sidewalk_point is not None and len(sidewalk_point)>0:
-                    sidewalk_point = from_local_to_global_frame(ego_state, sidewalk_point[:2])
+                sidewalk_lanes = sidewalk_following.detect(labels_to_array(segmentation_data),depth_data, ego_state, show_lines=True, image_rgb=camera_data)
+                bp._lanes = sidewalk_lanes
+                #if sidewalk_point is not None and len(sidewalk_point)>0:
+                    #sidewalk_point = from_local_to_global_frame(ego_state, sidewalk_point[:2])
                     #visualize_point(map, sidewalk_point[0], sidewalk_point[1], 10, img_map, color=(0,0,0))
 
                 point_on_lane = lane_following.detect(labels_to_array(segmentation_data),depth_data, show_lines=True, image_rgb=camera_data)
