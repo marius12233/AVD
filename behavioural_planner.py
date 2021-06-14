@@ -897,12 +897,27 @@ class BehaviouralPlanner:
         lookahead_dist=16
         
         for i in range(len( pedestrian_position )):
+
+            local_pos=from_global_to_local_frame(ego_state,pedestrian_position[i])
+            
+            #Filter out pedestrian not on road
+            x,y = local_pos
+            continue_condition = False
+            for lane in self._lanes:
+                m,b = lane
+                if y > m*x + b:
+                    continue_condition = True
+                    break
+            if continue_condition:
+                #print("Pedestrian: {} is on sidewalk".format(i))
+                continue
+
+
             pedestrian_angle = math.atan2(pedestrian_rot[i][1],pedestrian_rot[i][0])
             
-            #if pedestrian_angle<0:
-            #    pedestrian_angle+=2*math.pi
+
             
-            local_pos=from_global_to_local_frame(ego_state,pedestrian_position[i])
+            
             if self._nearest_intersection and np.linalg.norm(np.array(self._nearest_intersection[:2]) - np.array(ego_state[:2]) )<=15:
                 
                 is_turn = self._intersections_turn.get(str(self._nearest_intersection[:2]))

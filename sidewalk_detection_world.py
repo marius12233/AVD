@@ -138,9 +138,9 @@ class SidewalkFollowing:
             #Compute m and b to obtain: y = mx+b
             if x1==x2:
                 continue
-            
+
             m = (y2-y1)/(x2-x1)
-            b = y2 - m*x2
+            b = y1 - m*x1
             global_lanes.append([m, b])
             
 
@@ -195,6 +195,6 @@ class SidewalkFollowing:
             vehicle_frame_x = vehicle_frame[0][0] - 1.5
         
         vehicle_frame_point = np.array([vehicle_frame_x,-vehicle_frame_y])
-        global_frame_point = from_local_to_global_frame(ego_state, vehicle_frame_point)
+        #global_frame_point = from_local_to_global_frame(ego_state, vehicle_frame_point)
 
-        return global_frame_point
+        return vehicle_frame_point#global_frame_point
