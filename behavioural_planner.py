@@ -15,6 +15,7 @@ EMERGENCY_STOP = 4
 OVERTAKING = 5
 # Stop speed threshold
 STOP_THRESHOLD = 0.03
+EMERGENCY_STOP_THRESHOLD = 0.01
 # Number of cycles before moving from stop sign.
 STOP_COUNTS = 10
 MAX_DIST_TO_STOP = 7
@@ -603,7 +604,7 @@ class BehaviouralPlanner:
         
         elif self._state == EMERGENCY_STOP:
 
-            if abs(closed_loop_speed) <= STOP_THRESHOLD:
+            if abs(closed_loop_speed) <= EMERGENCY_STOP_THRESHOLD:
                 self._state = STAY_STOPPED
 
 
