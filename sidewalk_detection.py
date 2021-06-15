@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 import math
+
 def check_limits(value, min_value, max_value):
     value = max(value, min_value)
     value = min(value, max_value)

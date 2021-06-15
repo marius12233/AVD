@@ -123,25 +123,41 @@ class SidewalkFollowing:
 
         lane_image = np.zeros((image.shape[0],image.shape[1]), np.uint8)
         global_lanes = []
+        points = []
         #global_points = []
 
         for lane in lanes:
             x1,y1,x2,y2 = lane[0]
             cv2.line(lane_image, (x1,y1),(x2,y2), (255, 0, 0), 10)
 
+            
+            m =  ( (image.shape[1] - y2) - (image.shape[1] - y1) )/(x2-x1)
+            b = (image.shape[1] - y1) - m*x1
+            global_lanes.append([m, b])
+
+            lane_image_temp = np.zeros((image.shape[0],image.shape[1]), np.uint8)
+            
+            print("Points: ", x1,y1,x2,y2)
+            print("m: ", m, " b: ", b)
+
             #Compute points in global
+            """
             x1,y1 = self.convert_point(x1, y1, depth_data, ego_state)
             x2,y2 = self.convert_point(x2, y2, depth_data, ego_state)
 
             #global_points.append([(x1,y1), (x2,y2)])
 
             #Compute m and b to obtain: y = mx+b
-            if x1==x2:
+            if y1==y2:
                 continue
 
-            m = (y2-y1)/(x2-x1)
-            b = y1 - m*x1
+            m = (x2-x1)/(y2-y1)
+            b = x1 - m*y1
             global_lanes.append([m, b])
+            points.append([x1, y1])
+            points.append([x2, y2])
+            """
+
             
 
         cv2.imshow("Lane Sidewalk", lane_image)
@@ -198,3 +214,5 @@ class SidewalkFollowing:
         #global_frame_point = from_local_to_global_frame(ego_state, vehicle_frame_point)
 
         return vehicle_frame_point#global_frame_point
+    
+

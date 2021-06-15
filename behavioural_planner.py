@@ -56,6 +56,7 @@ class BehaviouralPlanner:
         self._stop_for = None #None if you will not stop for tl or ped, 0 for pedestrian, 1 for TL
         self._pedestrian_stopped_index = None
         self._lanes = None #[[m1,b1],[m2,b2]]
+        self._pedestrian_coords_pixel = None
     
     def set_lookahead(self, lookahead):
         self._lookahead = lookahead
@@ -879,7 +880,7 @@ class BehaviouralPlanner:
 
             self._follow_lead_vehicle = False
         
-    def check_for_closest_pedestrian(self,ego_state,ego_orientation,pedestrian_position,pedestrian_speed,pedestrian_rot):
+    def check_for_closest_pedestrian(self,ego_state,ego_orientation,pedestrian_position,pedestrian_speed,pedestrian_rot, pedestrian_pixels):
         local_pos_closest=np.inf
         closest_ped_idx=None
         ego_rot_x = ego_orientation[0]
@@ -899,18 +900,38 @@ class BehaviouralPlanner:
         for i in range(len( pedestrian_position )):
 
             local_pos=from_global_to_local_frame(ego_state,pedestrian_position[i])
-            
+
             #Filter out pedestrian not on road
-            x,y = local_pos
             continue_condition = False
-            for lane in self._lanes:
-                m,b = lane
-                if y > m*x + b:
-                    continue_condition = True
-                    break
-            if continue_condition:
-                #print("Pedestrian: {} is on sidewalk".format(i))
-                continue
+            pixel = pedestrian_pixels[i]
+
+            if not pixel is None: 
+                x,y = pixel
+                y = 416 - y
+
+                if i==122:
+                    print("\n\n ============== \n\n")
+                    print("Pedestrian 122 has pixel coords: ", (x,y))
+                    print("\n\n ============== \n\n")
+                
+                for coefs in self._lanes:
+                    m,b = coefs
+                    if i==122:
+                        print("m: {},  b; {}".format(m,b))
+
+                    if y > m*x + b:
+                        if i==122:
+                            print("proj: {}".format(m*x + b))
+                        continue_condition = True
+                        break
+                if i==122:
+                    print("\n\n ============== \n\n")
+                if continue_condition:
+                    if local_pos[0]> 0 and local_pos[0] <lookahead_dist and local_pos[1]>-10 and local_pos[1]<10:
+                        
+                        print("Pedestrian: {} is on sidewalk".format(i))
+                    continue
+                
 
 
             pedestrian_angle = math.atan2(pedestrian_rot[i][1],pedestrian_rot[i][0])

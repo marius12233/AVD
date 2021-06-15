@@ -41,12 +41,14 @@ from traffic_light_tracking import TrafficLightTracking
 from traffic_light import TrafficLight
 from lane_detection_and_following import LaneFollowing
 from sidewalk_detection_world import SidewalkFollowing
+from carla.transform import Transform
+from numpy.linalg import pinv, inv
 
 ###############################################################################
 # CONFIGURABLE PARAMENTERS DURING EXAM
 ###############################################################################
-PLAYER_START_INDEX = 7#2#133#2#7#24#24#139#24#147#24#17#24#11#120#151#19#120#24#19#24#8#120#8#120#89##124#133#13#6#22#6#135#135#141#66 150         #  spawn index for player
-DESTINATION_INDEX =  15#23#63#23#15#145#145#59#90#151#90#64#147#13#90#147#90#143#90#139#63 #139#63#65#55#65#15#55#15#53#53#90#18        # Setting a Destination HERE
+PLAYER_START_INDEX = 24#7#2#133#2#7#24#24#139#24#147#24#17#24#11#120#151#19#120#24#19#24#8#120#8#120#89##124#133#13#6#22#6#135#135#141#66 150         #  spawn index for player
+DESTINATION_INDEX =  90#15#23#63#23#15#145#145#59#90#151#90#64#147#13#90#147#90#143#90#139#63 #139#63#65#55#65#15#55#15#53#53#90#18        # Setting a Destination HERE
 NUM_PEDESTRIANS        = 200      # total number of pedestrians to spawn
 NUM_VEHICLES           = 60      # total number of vehicles to spawn
 SEED_PEDESTRIANS       = 0      # seed for pedestrian spawn randomizer
@@ -199,6 +201,8 @@ def obstacle_to_world(location, dimensions, orientation):
     
     return box_pts
 
+camera_to_car_transform = [None]
+
 def make_carla_settings(args):
     """Make a CarlaSettings object with the settings we need.
     """
@@ -249,6 +253,8 @@ def make_carla_settings(args):
     camera0.set_image_size(camera_width, camera_height)
     camera0.set(FOV=camera_fov)
     camera0.set_position(cam_x_pos, cam_y_pos, cam_height)
+
+    camera_to_car_transform[0] = camera0.get_unreal_transform()
 
     settings.add_sensor(camera0)
 
@@ -988,6 +994,9 @@ def exec_waypoint_nav_demo(args):
 
 
         tl_tracking = TrafficLightTracking(intersection_nodes=intersection_nodes_world)
+
+
+
         #############################################
         # Scenario Execution Loop
         #############################################
@@ -1056,10 +1065,34 @@ def exec_waypoint_nav_demo(args):
             #   the Course 4 final project
             ###
 
+            ###FROM WORLD TO PIXEL
+            
+            world_transform = Transform(
+            measurement_data.player_measurements.transform
+            )
+            # Compute the final transformation matrix.
+            extrinsic = world_transform * camera_to_car_transform[0]
+            # Calculate Intrinsic Matrix
+            camera_width = camera_parameters['width'] = 416
+            camera_height = camera_parameters['height'] = 416
+            camera_fov = camera_parameters['fov']
+            f = camera_width /(2 * tan(camera_fov * pi / 360))
+            Center_X = camera_width / 2.0
+            Center_Y = camera_height / 2.0
+
+
+
+            intrinsic_matrix = np.array([[f, 0, Center_X],
+                                        [0, f, Center_Y],
+                                        [0, 0, 1]])
+            coords_2d = []
+            cam_data = sensor_data.get('CameraRGB', None)
+            cam_data = to_bgra_array(cam_data)
+            cam_data = np.copy(cam_data)
             # Obtain Lead Vehicle information.
             prob_obs ={}
             prob_obs["vehicle"]={"pos":[],"speed":[],"bounding_box":[], "rot":[], "ori":[], "bounding_box_extent":[]}
-            prob_obs["pedestrian"]={"pos":[],"bounding_box":[],"speed":[],"rot":[]}            
+            prob_obs["pedestrian"]={"pos":[],"bounding_box":[],"speed":[],"rot":[], "pixel_coords":[]}            
             for agent in measurement_data.non_player_agents:
                 agent_id = agent.id
                 if agent.HasField('vehicle'):
@@ -1071,9 +1104,7 @@ def exec_waypoint_nav_demo(args):
                     prob_obs["vehicle"]["rot"].append([agent.vehicle.transform.orientation.x,agent.vehicle.transform.orientation.y])
                     prob_obs["vehicle"]["ori"].append([agent.vehicle.transform.rotation.yaw,agent.vehicle.transform.rotation.pitch, agent.vehicle.transform.rotation.roll ] )
                     prob_obs["vehicle"]["bounding_box_extent"].append(agent.vehicle.bounding_box.extent)
-                    
-                    
-            
+
                 
                 if agent.HasField('pedestrian'):
                     prob_obs["pedestrian"]["pos"].append([agent.pedestrian.transform.location.x,
@@ -1081,7 +1112,39 @@ def exec_waypoint_nav_demo(args):
                     prob_obs["pedestrian"]["bounding_box"].append(obstacle_to_world(agent.pedestrian.transform.location,agent.pedestrian.bounding_box.extent,agent.pedestrian.transform.rotation))
                     prob_obs["pedestrian"]["speed"].append(agent.pedestrian.forward_speed)
                     prob_obs["pedestrian"]["rot"].append([agent.pedestrian.transform.orientation.x,agent.pedestrian.transform.orientation.y])
-            
+                    
+                    bbox_extent = agent.pedestrian.bounding_box.extent
+                    pos = agent.pedestrian.transform.location
+                    pos_vector = np.array([[pos.x], [pos.y], [pos.z - bbox_extent.z], [1.0]])
+
+                    transformed_3d_pos = np.dot(inv(extrinsic.matrix), pos_vector)
+                    pos2d = np.dot(intrinsic_matrix, transformed_3d_pos[:3])
+                    coords_2d = None
+
+                    pos2d = np.array([
+                        pos2d[0] / pos2d[2],
+                        pos2d[1] / pos2d[2],
+                        pos2d[2]])
+
+                    if pos2d[2] > 0:
+                        x_2d = camera_width - pos2d[0]
+                        y_2d = camera_height - pos2d[1]
+
+                        coords_2d = ( int(x_2d[0]), int(y_2d[0]) )
+
+                        if len(prob_obs["pedestrian"]["pixel_coords"])==122:
+                            cv2.circle(cam_data, (int(x_2d[0]), int(y_2d[0])), 1, (0,0,255), thickness=-1)
+                            print("Coords: ", (int(x_2d[0]), int(y_2d[0])) )
+                        
+                        #cv2.putText(cam_data, str(len(coords_2d)-1), (int(x_2d[0]), int(y_2d[0])), cv2.FONT_HERSHEY_SIMPLEX,1,(0,0,255))
+
+                    
+                    prob_obs["pedestrian"]["pixel_coords"].append(coords_2d)
+
+                        
+            cv2.imshow("Img with agents: ", cam_data)
+            cv2.waitKey(10)
+
             #print("My bbox: ", measurement_data.player_measurements.bounding_box.extent)
             # Execute the behaviour and local planning in the current instance
             # Note that updating the local path during every controller update
@@ -1327,7 +1390,7 @@ def exec_waypoint_nav_demo(args):
                 
                 closest_vehicle_index=bp.check_forward_closest_vehicle(ego_state,(ego_orientation.x, ego_orientation.y),prob_obs["vehicle"]["pos"], prob_obs["vehicle"]["rot"])
                 
-                bp.check_for_closest_pedestrian(ego_state,(ego_orientation.x, ego_orientation.y),prob_obs["pedestrian"]["pos"],prob_obs["pedestrian"]["speed"],prob_obs["pedestrian"]["rot"])
+                bp.check_for_closest_pedestrian(ego_state,(ego_orientation.x, ego_orientation.y),prob_obs["pedestrian"]["pos"],prob_obs["pedestrian"]["speed"],prob_obs["pedestrian"]["rot"], prob_obs["pedestrian"]["pixel_coords"])
                 #Setting bp variables
                 bp.set_nearest_intersection(tl_tracking.find_nearest_intersection(ego_state))
                 # Set lookahead based on current speed.
