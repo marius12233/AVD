@@ -87,6 +87,7 @@ class LocalPlanner:
             delta_y = waypoints[goal_index][1] - waypoints[goal_index-1][1]
         heading = np.arctan2(delta_y,delta_x)
 
+
         # Compute the center goal state in the local frame using 
         # the ego state. The following code will transform the input
         # goal state to the ego vehicle's local frame.
@@ -116,10 +117,17 @@ class LocalPlanner:
         goal_v = goal_state[2]
 
         # Keep the goal heading within [-pi, pi] so the optimizer behaves well.
+        
         if goal_t > pi:
             goal_t -= 2*pi
         elif goal_t < -pi:
             goal_t += 2*pi
+        
+        print("delta x: ", delta_x)
+        print("delta y: ", delta_y)
+        print("Heading angle: ", heading)
+        print("yaw vehicle: ", ego_state[2])
+        print("Goal t: ", goal_t)
 
         # Compute and apply the offset for each path such that
         # all of the paths have the same heading of the goal state, 

@@ -30,7 +30,10 @@ def image_sidewalk_filter_and_crop(image, use_roi = False):
     gray[image == 7] = 255
     gray[image == 6] = 255
     
-    
+    gray = cv2.dilate(gray, (5,5))
+
+    cv2.imshow("Sidewalk dilate",gray)
+    cv2.waitKey(10)
     gray = cv2.Canny(gray,150,200)
     # Creating kernel
     #kernel = np.ones((5, 5), np.uint8)
@@ -38,6 +41,7 @@ def image_sidewalk_filter_and_crop(image, use_roi = False):
     # Using cv2.erode() method 
     #image = cv2.erode(gray, kernel)
     # gray[image == 8] = 255
+    
     cv2.imshow("Sidewalk",gray)
     cv2.waitKey(10)
 

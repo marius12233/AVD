@@ -229,11 +229,14 @@ def waypoint_precise_adder(waypoints, next_waypoint_distance, closest_index, goa
     added_waypoint[0][0] = x_g
     added_waypoint[0][1] = y_g
     added_waypoint[0][2] = waypoints[heading_index][2]
-    temp = waypoints[heading_index:]
-    waypoints.resize((len(waypoints)+1, 3), refcheck = False )
-    waypoints[heading_index:heading_index+1] = np.array(added_waypoint)
-    waypoints[heading_index+1:] = temp
-    print("Added waypoint in :",waypoints[heading_index][:2])
+    
+    
+    waypoints.resize((len(waypoints)+1, 3), refcheck = False )    
+
+    waypoints[heading_index+1:] = waypoints[heading_index:-1]
+    waypoints[heading_index] = np.array(added_waypoint)
+    
+
     return heading_index
 
         

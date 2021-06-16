@@ -136,28 +136,8 @@ class SidewalkFollowing:
             global_lanes.append([m, b])
 
             
-            print("Points: ", x1,y1,x2,y2)
+            #print("Points: ", x1,y1,x2,y2)
             print("m: ", m, " b: ", b)
-
-            #Compute points in global
-            """
-            x1,y1 = self.convert_point(x1, y1, depth_data, ego_state)
-            x2,y2 = self.convert_point(x2, y2, depth_data, ego_state)
-
-            #global_points.append([(x1,y1), (x2,y2)])
-
-            #Compute m and b to obtain: y = mx+b
-            if y1==y2:
-                continue
-
-            m = (x2-x1)/(y2-y1)
-            b = x1 - m*y1
-            global_lanes.append([m, b])
-            points.append([x1, y1])
-            points.append([x2, y2])
-            """
-
-            
 
         cv2.imshow("Lane Sidewalk", lane_image)
         cv2.waitKey(10)

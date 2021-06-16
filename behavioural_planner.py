@@ -590,8 +590,6 @@ class BehaviouralPlanner:
             else:
                 for coefs in self._lanes:
                     m,b = coefs
-
-
                     if y > m*x + b:
                         continue_condition = True
                         break
@@ -623,7 +621,7 @@ class BehaviouralPlanner:
                 diff = 2*math.pi - diff
                  
 
-            if local_pos[0]> 0 and local_pos[0] <lookahead_dist: #and ( ((pedestrian_angle + 0.20) % (2*math.pi) < ego_angle or pedestrian_angle > (ego_angle + 0.20) % (2*math.pi)) and(  (pedestrian_angle +0.20) % (2*math.pi)  < ego_angle+offset or pedestrian_angle > (ego_angle +offset + 0.20) % (2*math.pi) )):
+            if local_pos[0]> 0 and local_pos[0] <lookahead_dist and local_pos[1]>-7 and local_pos[1]<7: #and ( ((pedestrian_angle + 0.20) % (2*math.pi) < ego_angle or pedestrian_angle > (ego_angle + 0.20) % (2*math.pi)) and(  (pedestrian_angle +0.20) % (2*math.pi)  < ego_angle+offset or pedestrian_angle > (ego_angle +offset + 0.20) % (2*math.pi) )):
                 
 
                 if diff > math.pi/4 and diff < 3.5*math.pi/4:
