@@ -130,12 +130,11 @@ class SidewalkFollowing:
             x1,y1,x2,y2 = lane[0]
             cv2.line(lane_image, (x1,y1),(x2,y2), (255, 0, 0), 10)
 
-            
+            points.append((x1,y1,x2,y2))
             m =  ( (image.shape[1] - y2) - (image.shape[1] - y1) )/(x2-x1)
             b = (image.shape[1] - y1) - m*x1
             global_lanes.append([m, b])
 
-            lane_image_temp = np.zeros((image.shape[0],image.shape[1]), np.uint8)
             
             print("Points: ", x1,y1,x2,y2)
             print("m: ", m, " b: ", b)
@@ -165,7 +164,7 @@ class SidewalkFollowing:
         print("Global lanes: ", global_lanes)
 
 
-        return global_lanes
+        return global_lanes, points
 
 
     def convert_point(self, x, y, depth_data, ego_state):
