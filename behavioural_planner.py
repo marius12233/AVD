@@ -26,6 +26,7 @@ DIST_FROM_PEDESTRIAN = 4
 STOP_FOR_PEDESTRIAN = 0
 STOP_FOR_TL = 1
 #MAX_DIST_TO_STOP = 6
+EGO_Y_EXTEND = 1
 
 class BehaviouralPlanner:
     def __init__(self, lookahead, lead_vehicle_lookahead):
@@ -57,6 +58,8 @@ class BehaviouralPlanner:
         self._pedestrian_stopped_index = None
         self._lanes = None #[[m1,b1],[m2,b2]]
         self._pedestrian_coords_pixel = None
+        self._boundaries = [None, None]
+
     
     def set_lookahead(self, lookahead):
         self._lookahead = lookahead
@@ -578,27 +581,27 @@ class BehaviouralPlanner:
             local_pos=from_global_to_local_frame(ego_state,pedestrian_position[i])
 
             #Filter out pedestrian not on road
-            continue_condition = False
-            pixel = pedestrian_pixels[i]
+            if self._closest_pedestrian is None:
+                continue_condition = False
+                pixel = pedestrian_pixels[i]
 
- 
-            x,y = pixel
-            y = 416 - y
+    
+                x,y = pixel
+                y = 416 - y
 
-            if abs(x)>416 or abs(y)>416:
-                continue_condition=True                 
-            else:
+
                 for coefs in self._lanes:
                     m,b = coefs
+
                     if y > m*x + b:
                         continue_condition = True
                         break
 
 
-            if continue_condition:
-                if local_pos[0]> 0 and local_pos[0] <=lookahead_dist and local_pos[1]>-10 and local_pos[1]<10:
-                    print("Pedestrian: {} is on sidewalk".format(i))
-                continue
+                if continue_condition:
+                    if local_pos[0]> 0 and local_pos[0] <=lookahead_dist and local_pos[1]>-10 and local_pos[1]<10:
+                        print("Pedestrian: {} is on sidewalk".format(i))
+                    continue
                 
 
 
@@ -620,11 +623,13 @@ class BehaviouralPlanner:
             if diff > math.pi:
                 diff = 2*math.pi - diff
                  
+            
+            left_bound = -5 if self._boundaries[0] is None else self._boundaries[0]
+            right_bound = 5 if self._boundaries[1] is None else self._boundaries[1]
 
-            if local_pos[0]> 0 and local_pos[0] <lookahead_dist and local_pos[1]>-7 and local_pos[1]<7: #and ( ((pedestrian_angle + 0.20) % (2*math.pi) < ego_angle or pedestrian_angle > (ego_angle + 0.20) % (2*math.pi)) and(  (pedestrian_angle +0.20) % (2*math.pi)  < ego_angle+offset or pedestrian_angle > (ego_angle +offset + 0.20) % (2*math.pi) )):
-                
-
-                if diff > math.pi/4 and diff < 3.5*math.pi/4:
+            if local_pos[0]> 0 and local_pos[0] <lookahead_dist and local_pos[1]>left_bound and local_pos[1]<right_bound: #and ( ((pedestrian_angle + 0.20) % (2*math.pi) < ego_angle or pedestrian_angle > (ego_angle + 0.20) % (2*math.pi)) and(  (pedestrian_angle +0.20) % (2*math.pi)  < ego_angle+offset or pedestrian_angle > (ego_angle +offset + 0.20) % (2*math.pi) )):
+                 
+                if (diff > math.pi/4 and diff < 3.5*math.pi/4) or (local_pos[1]>-EGO_Y_EXTEND and local_pos[1]<EGO_Y_EXTEND): #Se l'orientamento è più o meno perpendicolare o il pedone sta in un range uguale alla largezza del veicolo prendilo come closest pedestrian
                     if local_pos[0] < local_pos_closest:
                         #print("---------")
                         #print("Sono la macchina e vado ",ego_angle)
@@ -719,9 +724,12 @@ class BehaviouralPlanner:
             if diff > math.pi:
                 diff = 2*math.pi - diff
 
+            left_bound = -5 if self._boundaries[0] is None else self._boundaries[0]
+            right_bound = 5 if self._boundaries[1] is None else self._boundaries[1]
+
             if local_pos[0] >= 0: 
                 if diff <= math.pi/4:  
-                    if (lead_car_idx is None or local_pos[0]<lead_car_local_pos[0]) and local_pos[1]>-5 and local_pos[1]<5 :
+                    if (lead_car_idx is None or local_pos[0]<lead_car_local_pos[0]) and local_pos[1]>left_bound and local_pos[1]<right_bound :
                         lead_car_idx=i
                         lead_car_local_pos=local_pos
             

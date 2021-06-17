@@ -47,8 +47,8 @@ from numpy.linalg import pinv, inv
 ###############################################################################
 # CONFIGURABLE PARAMENTERS DURING EXAM
 ###############################################################################
-PLAYER_START_INDEX = 7#2#24#2#24#7#2#133#2#7#24#24#139#24#147#24#17#24#11#120#151#19#120#24#19#24#8#120#8#120#89##124#133#13#6#22#6#135#135#141#66 150         #  spawn index for player
-DESTINATION_INDEX =  15#23#28#23#90#15#23#63#23#15#145#145#59#90#151#90#64#147#13#90#147#90#143#90#139#63 #139#63#65#55#65#15#55#15#53#53#90#18        # Setting a Destination HERE
+PLAYER_START_INDEX = 15#24#7#2#24#2#24#7#2#133#2#7#24#24#139#24#147#24#17#24#11#120#151#19#120#24#19#24#8#120#8#120#89##124#133#13#6#22#6#135#135#141#66 150         #  spawn index for player
+DESTINATION_INDEX =  90#2415#23#28#23#90#15#23#63#23#15#145#145#59#90#151#90#64#147#13#90#147#90#143#90#139#63 #139#63#65#55#65#15#55#15#53#53#90#18        # Setting a Destination HERE
 NUM_PEDESTRIANS        = 200      # total number of pedestrians to spawn
 NUM_VEHICLES           = 60      # total number of vehicles to spawn
 SEED_PEDESTRIANS       = 0      # seed for pedestrian spawn randomizer
@@ -80,6 +80,7 @@ WEATHERID = {
     "HARDRAINSUNSET": 13,
     "SOFTRAINSUNSET": 14,
 }
+
 SIMWEATHER = WEATHERID["CLEARNOON"]     # set simulation weather
 
 FIGSIZE_X_INCHES   = 8      # x figure size of feedback in inches
@@ -695,6 +696,7 @@ def exec_waypoint_nav_demo(args):
         speed_history = [0]
         collided_flag_history = [False]  # assume player starts off non-collided
 
+
         intersections_turn = {}#dict that collects the intersection points which are in a turn
         #############################################
         # Settings Waypoints
@@ -1223,6 +1225,10 @@ def exec_waypoint_nav_demo(args):
                     cv2.imshow("Img with agents: ", cam_data)
                     cv2.waitKey(10)
                     bp._lanes = sidewalk_lanes
+                    bp._boundaries = sidewalk_following._boundaries
+
+                boundaries = bp._boundaries
+                print("Distance from left: {}\n distance from right: {}".format(boundaries[0], boundaries[1]))
                 #if sidewalk_point is not None and len(sidewalk_point)>0:
                     #sidewalk_point = from_local_to_global_frame(ego_state, sidewalk_point[:2])
                     #visualize_point(map, sidewalk_point[0], sidewalk_point[1], 10, img_map, color=(0,0,0))

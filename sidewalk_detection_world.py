@@ -52,6 +52,14 @@ def to_rot(r):
 
     return Rz*Ry*Rx
 
+MIN_SLOP_LEFT = 0.2
+MAX_SLOP_LEFT = 0.4
+
+MAX_SLOP_RIGHT = -0.3
+MIN_SLOP_RIGHT = -0.8
+
+LEN_ROAD = 10
+
 # Lane detection and following class
 class SidewalkFollowing:
     def __init__(self, camera_parameters):
@@ -89,6 +97,8 @@ class SidewalkFollowing:
 
         # Lambda Function for transformation of image frame in camera frame 
         self.image_to_camera_frame = lambda object_camera_frame: np.dot(image_camera_frame , object_camera_frame)
+
+        self._boundaries = [None, None] #Contains the left and right distance from respective lanes
         
 
     def detect(self, image, depth_data, ego_state, speed_limit = 5.0, image_rgb = None, show_lines = False,):
@@ -125,6 +135,13 @@ class SidewalkFollowing:
         global_lanes = []
         points = []
         #global_points = []
+        right_lane = None
+        right_len = 0
+        point_right = None
+
+        left_lane = None
+        left_len = 0
+        point_left = None
 
         for lane in lanes:
             x1,y1,x2,y2 = lane[0]
@@ -135,9 +152,54 @@ class SidewalkFollowing:
             b = (image.shape[1] - y1) - m*x1
             global_lanes.append([m, b])
 
+
+            if m > MIN_SLOP_RIGHT and m < MAX_SLOP_RIGHT: #Linea destra
+                if right_lane is None:
+                    right_lane = [x1,y1,x2,y2]
+                    right_len = np.sqrt((x2-x1)**2  + (y2-y1)**2)
+                else:
+                    current_len = np.sqrt((x2-x1)**2  + (y2-y1)**2)
+                    if current_len > right_len:
+                        right_lane = [x1,y1,x2,y2]
+                        right_len = current_len
             
+            if m > MIN_SLOP_LEFT and m < MAX_SLOP_LEFT: #Linea sinistra
+                if left_lane is None:
+                    left_lane = [x1,y1,x2,y2]
+                    left_len = np.sqrt((x2-x1)**2  + (y2-y1)**2)
+                else:
+                    current_len = np.sqrt((x2-x1)**2  + (y2-y1)**2)
+                    if current_len > left_len:
+                        left_lane = [x1,y1,x2,y2]
+                        left_len = current_len
+            
+
             #print("Points: ", x1,y1,x2,y2)
             print("m: ", m, " b: ", b)
+
+        if right_lane is not None:
+            y1,y2 = right_lane[1], right_lane[3]
+            point_right = right_lane[:2] if y1 > y2 else right_lane[2:]
+            point_right_coords = self.convert_point(point_right[0],point_right[1], depth_data, ego_state)
+           
+            self._boundaries[1] = point_right_coords[1] + 1 #1 meter of security at right
+            self._boundaries[0] = self._boundaries[1] - LEN_ROAD
+
+        elif left_lane is not None: #Se la linea di destra non è stata presa (probabilmente sto in curva)
+            y1,y2 = left_lane[1], left_lane[3]
+            point_left = left_lane[:2] if y1 > y2 else left_lane[2:]
+            point_left_coords = self.convert_point(point_left[0],point_left[1], depth_data, ego_state)
+           
+            self._boundaries[0] = point_left_coords[1] - 1 #1 meter of security at left
+            self._boundaries[1] = LEN_ROAD + self._boundaries[0]
+        else:
+             self._boundaries[0] = None
+             self._boundaries[1] = None            
+            
+
+
+        
+        #print("Point right: ", self._boundaries[1])
 
         cv2.imshow("Lane Sidewalk", lane_image)
         cv2.waitKey(10)
