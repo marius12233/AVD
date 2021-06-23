@@ -1422,8 +1422,8 @@ def exec_waypoint_nav_demo(args):
                     bp.check_for_lead_vehicle(ego_state, None)
                 
                 #Check if we can make an overtaking
-                may_overtaking = bp.check_overtaking_condition(ego_state, (ego_orientation.x, ego_orientation.y), prob_obs["vehicle"]["pos"], prob_obs["vehicle"]["rot"], prob_obs["vehicle"]["speed"])
-                print("MAY OVERTAKEE:v ", may_overtaking)
+                
+                
                 #Visualize vehicles on map
                 img_map_copy = img_map.copy()
                 for i, v_p in enumerate(prob_obs["vehicle"]["pos"]):
@@ -1438,7 +1438,7 @@ def exec_waypoint_nav_demo(args):
                 cv2.imshow("Cars map", img_map_copy)
                 cv2.waitKey(10)
 
-                if  bp.get_follow_lead_vehicle() and not may_overtaking:
+                if  bp.get_follow_lead_vehicle() :
                     #print("----Follow Lead----")
                     #print("Idx Lead: ", closest_vehicle_index)
                     #

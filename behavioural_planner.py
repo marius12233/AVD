@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 from traffic_light import GREEN, RED, TrafficLight
-from utils import from_global_to_local_frame, from_local_to_global_frame
+from utils import from_global_to_local_frame
 import numpy as np
 import math
-from utils import obstacle_to_world,from_global_to_local_frame, waypoint_add_ahead_distance,waypoint_precise_adder
-from queue import PriorityQueue
+from utils import from_global_to_local_frame,waypoint_precise_adder
+
 # State machine states
 FOLLOW_LANE = 0
 DECELERATE_TO_STOP = 1
@@ -34,30 +34,17 @@ class BehaviouralPlanner:
         self._follow_lead_vehicle_lookahead = lead_vehicle_lookahead
         self._state                         = FOLLOW_LANE
         self._follow_lead_vehicle           = False
-        self._obstacle_on_lane              = False
         self._goal_state                    = [0.0, 0.0, 0.0]
         self._goal_index                    = 0
-        self._no_tl_found_counter = 0
         self._traffic_light:TrafficLight = None
-        self._has_tl_changed_pos = False #Ci serve per dire che se il semaforo è quello di sempre mi risparmio di fare le operazioni
-        self._desired_speed_intersection = 5
         self._next_intersection = None
-        self._possible_overtaking = False
-        self._speed_lead_car = 0
-        self._lead_car = None
         self._on_current_lane = True #Set if I stay in the current lane or not
-        self._may_overtake=False
-        self._leads = PriorityQueue()
-        self._opposites = []
-        self._overtaking_vehicle = None
         self._closest_pedestrian=None
         self._nearest_intersection=None
-        self._forward_pedestrian = {}
         self._intersections_turn = None
         self._stop_for = None #None if you will not stop for tl or ped, 0 for pedestrian, 1 for TL
         self._pedestrian_stopped_index = None
         self._lanes = None #[[m1,b1],[m2,b2]]
-        self._pedestrian_coords_pixel = None
         self._boundaries = [None, None]
 
     
@@ -73,16 +60,14 @@ class BehaviouralPlanner:
     
     def set_next_intersection(self, next_intersection):
         self._next_intersection = next_intersection
-    def set_pedestrian_on_lane(self,pedestrian_on_lane):
-        self._pedestrian_on_lane=pedestrian_on_lane 
-    def set_position_to_stop(self,position_to_stop):
-        self._position_to_stop=position_to_stop
+    
 
     def get_follow_lead_vehicle(self):
         return self._follow_lead_vehicle 
 
     def set_nearest_intersection(self, nearest_intersection):
         self._nearest_intersection = nearest_intersection
+    
     def set_intersections_turn(self, intersections_turn):
         self._intersections_turn = intersections_turn
 
@@ -665,7 +650,7 @@ class BehaviouralPlanner:
             obs_local_pos=from_global_to_local_frame(ego_state,vehicle_position[i])
             if obs_local_pos[0]>0 and obs_local_pos[0] < 20 and obs_local_pos[1]<5 and obs_local_pos[1]>-5:
                 prob_coll_vehicle.append(vehicle_bb[i])
-
+            """
             if self._overtaking_vehicle is not None and i==self._overtaking_vehicle[1]:
                 #prob_coll_vehicle.append(vehicle_bb[i])
                 #Portare il veicolo + avanti
@@ -679,7 +664,7 @@ class BehaviouralPlanner:
                 #Costruire bbox
                 new_bbox = obstacle_to_world(global_pos, vehicle_bbox_extend[i], vehicle_ori[i])
                 prob_coll_vehicle.append(new_bbox)
-            """
+           
             if i in self._opposites:
                 obs_local_pos=from_global_to_local_frame(ego_state,vehicle_position[i])
                 x=obs_local_pos[0] - vehicle_speed[i]/2 
@@ -735,161 +720,6 @@ class BehaviouralPlanner:
             
         return lead_car_idx
 
-    def check_overtaking_condition(self, ego_state, ego_orientation, vehicle_positions, vehicle_rot, vehicle_speed):
-        """ Tale metodo controlla se ci sono le condizioni per sorpassare un veicolo:
-            1- Non ci siano macchine di senso opposto nel giro di tot. metri
-            2- Non ci sono incroci nel giro di tot. metri
-            3- Non ci sono persone sulla strada nel giro di tot. metri
-
-        Args:
-            lead_car ([type]): [description]
-            vehicles_position ([type]): [description]
-        """
-        #Per ora restituiamo sempre False
-        self._may_overtake = False
-        return False
-
-        meters = 50
-
-
-        ego_rot_x = ego_orientation[0]
-        ego_rot_y = ego_orientation[1]
-        ego_angle = math.atan2(ego_rot_y,ego_rot_x)
-        print("My angle: ", ego_angle) 
-        #if ego_angle < 0:
-        #    ego_angle+=2*math.pi
-        #ego_angle_degree = ego_angle*180/math.pi
-        
-        #Se ci sono solo lead cars allora potrei sorpassare
-        lead_cars = []
-        opposite_cars = []
-        #1. Controllare se ci sono veicolo in senso opposto nel giro di meters
-        for i in range(len(vehicle_positions)):
-            lead_car = None
-            opposite_car = None
-
-            #Controllare se il veicolo sta di faccia
-            vehicle_angle = math.atan2(vehicle_rot[i][1],vehicle_rot[i][0]) #+ math.pi
-            #if vehicle_angle < 0:
-            #    vehicle_angle+=2*math.pi
-
-            local_pos=from_global_to_local_frame(ego_state,vehicle_positions[i][:2])
-
-            #Aggiorniamo sempre l'overtaking vehicle
-            if self._overtaking_vehicle is not None and i ==self._overtaking_vehicle[1]:
-                self._overtaking_vehicle = (local_pos[0], i)
-            
-            diff = abs(ego_angle - vehicle_angle)
-            if diff > math.pi:
-                diff = 2*math.pi - diff
-            
-            if local_pos[0] >= -6 and abs(local_pos[1])<5: #Se il veicolo considerato sta davanti a me
-                #if (vehicle_angle < (ego_angle + math.pi/4)%(2*math.pi) and  vehicle_angle > (ego_angle - math.pi/4)%(2*math.pi) ):  
-                if diff <= math.pi/4:
-                    #E' un lead_car
-                    lead_car = i
-                else:
-                    opposite_car = i
-
-            
-            #Se il veicolo ha orientamento opposto al mio Controllare sta davanti a me di tot metri
-            if opposite_car:
-                if local_pos[0] > meters or abs(local_pos[1])>20: #Se non sta davanti a me di tot metri e in un range di -5,+5 metri
-                    opposite_car=None
-            if lead_car:
-                if local_pos[0] > meters or abs(local_pos[1])>20:
-                    lead_car=None
-            
-            #Metto tutto in una PQ in base alla distanza dal veicolo
-            if opposite_car:
-                 #In leads ci metto in ordine in base alla distanza da me
-                
-                opposite_cars.append(opposite_car)
-                print("Opposite angle: ", vehicle_angle)
-            elif lead_car:
-                #print("Local positions of {} is {} and v: {}".format(i, str(int(local_pos[0]))+" ,"+str(int(local_pos[1])), vehicle_speed[i-1]))
-                lead_cars.append(lead_car)
-                print("Lead angle: ", vehicle_angle)
-                self._leads.put((local_pos[0], lead_car))
-            
-                
-        
-        
-        #1. Prendere il prossimo lead car (il più vicino a me)
-        lead_has_decelerated = False
-        d=np.Inf
-        min_lc = None
-        for lc in lead_cars:
-            distance = np.linalg.norm(np.array(vehicle_positions[lc][:2]) - np.array(ego_state[:2]))
-            if distance < d:
-                d = distance
-                min_lc = lc
-
-        #2. prendere la velocità
-        #print("Min dist lead is: ", min_lc)
-        if min_lc is not None:
-            speed_lead_car = vehicle_speed[min_lc]
-            #print("previous speed lead is: ", self._speed_lead_car)
-            #print("its speed is is: ", speed_lead_car)
-            
-            #se è zero o sta decrescendo non sorpassarlo, perché probabilmente si è fermato a un semaforo o a un incrocio
-            dy = 0.5
-            if speed_lead_car < 0.5 or ((speed_lead_car - self._speed_lead_car)<0 and abs(speed_lead_car - self._speed_lead_car)>dy):
-                lead_has_decelerated = True
-
-            self._speed_lead_car = speed_lead_car
-            self._lead_car = min_lc
-        else:
-            self._speed_lead_car=0
-            lead_has_decelerated = False
-            self._lead_car = None
-        
-        self._opposites = opposite_cars
-        print("Opposite cars: ", opposite_cars)
-        print("leading cars: ", lead_cars)
-
-
-
-        #Controllare se sto a 50 metri da un incrocio
-        next_intersection = self._next_intersection
-        if next_intersection is None:
-            self._may_overtake = False
-            print("CANNOT OVERTAKE: next_intersection is None")
-            return False
-            
-        next_intersection_local = from_global_to_local_frame(ego_state, next_intersection[:2])
-        if next_intersection_local[0]<meters: #Il prossimo incrocio è a meno di 50 metri
-            self._may_overtake = False
-            print("CANNOT OVERTAKE: Il prossimo incrocio è a meno di 50 metri")
-            return False
-        
-        #Controllare anche che non sia in un incrocio
-        if self._nearest_intersection and np.linalg.norm(np.array(self._nearest_intersection[:2]) - np.array(ego_state[:2]) )<=20:
-            self._may_overtake = False
-            print("CANNOT OVERTAKE: Sto a 20m dall'incrocio")
-            return False
-        
-        #Controllare anche se l'incrocio più vicino dietro di me sta a 50m
-
-        if len(opposite_cars)==0:
-            if not lead_has_decelerated:
-                print("CAN OVERTAKE!!")
-                print("Opposite cars: ", opposite_cars)
-                print("leading cars: ", lead_cars)
-                #self._follow_lead_vehicle = False
-                self._may_overtake = True
-                return True
-            else:
-                print("CANNOT OVERATE: Lead is decelerating")
-                self._may_overtake = False
-                return False
-        else:
-            print("CANNOT OVERTAKE")
-            print("Opposite cars: ", opposite_cars)
-            print("leading cars: ", lead_cars)
-            #self._follow_lead_vehicle = False
-            self._may_overtake = False
-            return False
                        
     def try_to_stop(self,ego_state):
         if self._closest_pedestrian is None:
