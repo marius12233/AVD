@@ -1560,6 +1560,9 @@ def exec_waypoint_nav_demo(args):
             if bp._state == behavioural_planner.EMERGENCY_STOP:
                 cmd_throttle = 0.0
                 cmd_brake = 1
+            
+            if bp._state == behavioural_planner.STAY_STOPPED and cmd_throttle>0:
+                cmd_throttle = 0.0
 
             # Skip the first frame or if there exists no local paths
             if skip_first_frame and frame == 0:

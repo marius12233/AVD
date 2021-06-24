@@ -80,11 +80,12 @@ class BehaviouralPlanner:
         if self._state == FOLLOW_LANE:
             
             #Proviamo a diminuire il lookahead nelle curve per non far allargare troppo l'auto
-            
+            """
             if self._nearest_intersection and np.linalg.norm(np.array(self._nearest_intersection[:2]) - np.array(ego_state[:2]) )<=15:
                 is_turn = self._intersections_turn.get(str(self._nearest_intersection[:2]))
                 if is_turn:
                     self._lookahead=16
+            """
             
 
             #print("FOLLOW_LANE")
@@ -244,7 +245,7 @@ class BehaviouralPlanner:
 
                     
 
-            if abs(closed_loop_speed) <= STOP_THRESHOLD and self._state != FOLLOW_LANE:
+            if abs(closed_loop_speed) <= STOP_THRESHOLD and self._state == DECELERATE_TO_STOP:
                 self._state = STAY_STOPPED
 
 
