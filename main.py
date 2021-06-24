@@ -1094,7 +1094,7 @@ def exec_waypoint_nav_demo(args):
             # Obtain Lead Vehicle information.
             prob_obs ={}
             prob_obs["vehicle"]={"pos":[],"speed":[],"bounding_box":[], "rot":[], "ori":[], "bounding_box_extent":[]}
-            prob_obs["pedestrian"]={"pos":[],"bounding_box":[],"speed":[],"rot":[], "pixel_coords":[]}            
+            prob_obs["pedestrian"]={"pos":[],"bounding_box":[],"rot":[], "pixel_coords":[]}            
             for agent in measurement_data.non_player_agents:
                 agent_id = agent.id
                 if agent.HasField('vehicle'):
@@ -1112,7 +1112,7 @@ def exec_waypoint_nav_demo(args):
                     prob_obs["pedestrian"]["pos"].append([agent.pedestrian.transform.location.x,
                                            agent.pedestrian.transform.location.y])
                     prob_obs["pedestrian"]["bounding_box"].append(obstacle_to_world(agent.pedestrian.transform.location,agent.pedestrian.bounding_box.extent,agent.pedestrian.transform.rotation))
-                    prob_obs["pedestrian"]["speed"].append(agent.pedestrian.forward_speed)
+                    
                     prob_obs["pedestrian"]["rot"].append([agent.pedestrian.transform.orientation.x,agent.pedestrian.transform.orientation.y])
                     
                     bbox_extent = agent.pedestrian.bounding_box.extent
@@ -1233,15 +1233,10 @@ def exec_waypoint_nav_demo(args):
                     #sidewalk_point = from_local_to_global_frame(ego_state, sidewalk_point[:2])
                     #visualize_point(map, sidewalk_point[0], sidewalk_point[1], 10, img_map, color=(0,0,0))
 
-                point_on_lane = lane_following.detect(labels_to_array(segmentation_data),depth_data, show_lines=True, image_rgb=camera_data)
+                
                 #point_on_lane = from_local_to_global_frame(ego_state, point_on_lane[:2])
                 #visualize_point(map, point_on_lane[0], point_on_lane[1], 100, img_map, color=(255,255,225))
-                if point_on_lane and point_on_lane[1]<0:
-                    print("Sto nella mia corsia")
-                else:
-                    print("Sto nell'altra corsia")
-                if point_on_lane:
-                    bp._on_current_lane = point_on_lane[1]<0
+                
 
                 #Display next intersection
                 int_point = tl_tracking.find_next_intersection(ego_state)
@@ -1402,7 +1397,7 @@ def exec_waypoint_nav_demo(args):
                 
                 closest_vehicle_index=bp.check_forward_closest_vehicle(ego_state,(ego_orientation.x, ego_orientation.y),prob_obs["vehicle"]["pos"], prob_obs["vehicle"]["rot"])
                 
-                bp.check_for_closest_pedestrian(ego_state,(ego_orientation.x, ego_orientation.y),prob_obs["pedestrian"]["pos"],prob_obs["pedestrian"]["speed"],prob_obs["pedestrian"]["rot"], prob_obs["pedestrian"]["pixel_coords"])
+                bp.check_for_closest_pedestrian(ego_state,(ego_orientation.x, ego_orientation.y),prob_obs["pedestrian"]["pos"],prob_obs["pedestrian"]["rot"], prob_obs["pedestrian"]["pixel_coords"])
                 #Setting bp variables
                 bp.set_nearest_intersection(tl_tracking.find_nearest_intersection(ego_state))
                 # Set lookahead based on current speed.
@@ -1417,7 +1412,7 @@ def exec_waypoint_nav_demo(args):
                 #lead_car_idx=None
                 if closest_vehicle_index is not None:
 
-                    bp.check_for_lead_vehicle(ego_state, prob_obs["vehicle"]["pos"][closest_vehicle_index], idx=closest_vehicle_index)
+                    bp.check_for_lead_vehicle(ego_state, prob_obs["vehicle"]["pos"][closest_vehicle_index])
                 else:
                     bp.check_for_lead_vehicle(ego_state, None)
                 
@@ -1465,10 +1460,10 @@ def exec_waypoint_nav_demo(args):
                 # Perform collision checking.
                 if(len(paths)>0):
                     collision_check_array=[ True ]*len(paths)
-                    prob_coll_pedestrian=bp.check_for_pedestrian(ego_state,prob_obs["pedestrian"]["pos"],prob_obs["pedestrian"]["bounding_box"])
-                    prob_coll_vehicle=bp.check_for_vehicle(ego_state,prob_obs["vehicle"]["pos"],prob_obs["vehicle"]["bounding_box"], prob_obs["vehicle"]["speed"],prob_obs["vehicle"]["ori"], prob_obs["vehicle"]["bounding_box_extent"])
+                    #prob_coll_pedestrian=bp.check_for_pedestrian(ego_state,prob_obs["pedestrian"]["pos"],prob_obs["pedestrian"]["bounding_box"])
+                    prob_coll_vehicle=bp.check_for_vehicle(ego_state,prob_obs["vehicle"]["pos"],prob_obs["vehicle"]["bounding_box"])
                     #print("Prob coll. vehicle: ", prob_coll_vehicle)
-                    for bb in  prob_coll_vehicle+ prob_coll_pedestrian:
+                    for bb in  prob_coll_vehicle: #prob_coll_pedestrian:
                         cc = lp._collision_checker.collision_check(paths, [bb])
                         collision_check_array=list(np.array(cc) & np.array(collision_check_array))
 
