@@ -551,17 +551,19 @@ class BehaviouralPlanner:
         closest_pedestrian_local = from_global_to_local_frame(ego_state, self._closest_pedestrian["pos"])
         return closest_pedestrian_local[0]-DIST_FROM_PEDESTRIAN
         
-    '''
+    
     def check_for_pedestrian(self,ego_state, pedestrian_position,pedestrian_bb):
         prob_coll_pedestrian=[]
+        left_bound = -5 if self._boundaries[0] is None else self._boundaries[0]
+        right_bound = 5 if self._boundaries[1] is None else self._boundaries[1]
         for i in range(len( pedestrian_position )):
             if self._closest_pedestrian and i == self._closest_pedestrian["index"]:
                 continue
             obs_local_pos=from_global_to_local_frame(ego_state,pedestrian_position[i])
-            if obs_local_pos[0]>0 and obs_local_pos[0] < 16 and obs_local_pos[1]<3 and obs_local_pos[1]>-3:
+            if obs_local_pos[0]>0 and obs_local_pos[0] < self._lookahead and obs_local_pos[1]<right_bound and obs_local_pos[1]>left_bound:
                 prob_coll_pedestrian.append(pedestrian_bb[i])
         return prob_coll_pedestrian
-    '''                
+                    
 
 
 
