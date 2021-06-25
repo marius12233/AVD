@@ -306,9 +306,7 @@ def make_carla_settings(args):
 
     settings.add_sensor(camera2r)
 
-
-
-
+    return settings
 
 class Timer(object):
     """ Timer Class

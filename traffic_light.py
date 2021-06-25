@@ -13,8 +13,8 @@ class TrafficLight:
         self._color = None
         self._measures = []
         self._cluster_belongs = None #Tuple
-        self._is_next = False
-        self.has_changed = True #Questo parametro verrà utilizzato da una classe esterna e verrà settato a False quando viene usato
+        self._is_next = False #it is used to say if the TL represented by this class is the next tl for the vehicle
+        self.has_changed = True #It is used to say if TL has changed cluster at which belongs
         self._last_img_cropped = None
         self._last_mask_cropped = None
         self._prev_ok = False
@@ -53,7 +53,7 @@ class TrafficLight:
             img = self._get_tl_by_img()
             color_cv = traffic_color_detection(img)
             #Se il colore non è riuscito a prenderlo bene da una telecamera il parametro prev ok viene messo a False
-            #e posso usare l'altra telecamera
+            #e posso decidere di usare l'altra telecamera
             if color_cv is not None:
                 color = color_cv 
                 self._prev_ok = True
@@ -62,7 +62,7 @@ class TrafficLight:
                 self._prev_ok = False
             print("COLOR: ", "RED" if color else "GREEN" )
         
-        
+
 
         if self._cluster_belongs is None:
             self._cluster_belongs = cluster
@@ -80,7 +80,7 @@ class TrafficLight:
             self._color = color
             self._is_next = True
 
-        else: #Se è cambiato
+        else: #Se è cambiato aggiornare il cluster a cui appartiene
             self._cluster_belongs = cluster
             self._measures = [pos]
             self._pos = pos
@@ -95,7 +95,7 @@ class TrafficLight:
 
         local_frame_pos = from_global_to_local_frame(ego_state, self._pos)
         #Se è stato chiamato questo metodo e il local frame pos del traffic light sta dietro di me, allora questo semaforo non è più il prossimo
-        if local_frame_pos[0]<3: #Se il traffic light sta dietro il veicolo
+        if local_frame_pos[0]<3: #Se il traffic light sta dietro il veicolo o avanti ma da non vederlo più
             self._is_next=False
         
 
