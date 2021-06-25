@@ -7,30 +7,6 @@ from pykalman import KalmanFilter
 
 MAX_DIM_COLORS = 5
 
-def apply_kalman_filter(measurements, show=False):
-    if len(measurements) <2:
-        return None
-    initial_state_mean = [measurements[0, 0],
-                        0,
-                        measurements[0, 1],
-                        0]
-
-    transition_matrix = [[1, 1, 0, 0],
-                        [0, 1, 0, 0],
-                        [0, 0, 1, 1],
-                        [0, 0, 0, 1]]
-
-    observation_matrix = [[1, 0, 0, 0],
-                        [0, 0, 1, 0]]
-
-    kf = KalmanFilter(transition_matrices = transition_matrix,
-                    observation_matrices = observation_matrix,
-                    initial_state_mean = initial_state_mean, n_dim_obs=2)
-
-    kf1 = kf.em(measurements, n_iter=5)
-    (smoothed_state_means, smoothed_state_covariances) = kf1.smooth(measurements)
-    return (smoothed_state_means[-1][0], smoothed_state_means[-1][2]) 
-
 
 class TrafficLightTracking:
 
@@ -39,14 +15,9 @@ class TrafficLightTracking:
         self.color_groups = {}
         self.directions = {}
         self.max_meters = 15
-        self._max_distance_to_vehicle = 60
         self.min_measurements = 3
         self._intersection_nodes = intersection_nodes
         
-
-        ## KALMAN FILTER meas
-        self._measurements = []
-        self._kf_pos = None
     
 
     def turn_to_next_intersection(self, waypoints):
@@ -72,53 +43,25 @@ class TrafficLightTracking:
                 if distance<dist: #Lo prendo a minima distanza da me
                     dist = distance
                     next_intersection = point
-        #if next_intersection is not None:
-        #    print("Next Intersection Found: ", next_intersection)
         return next_intersection
 
 
     def find_nearest_intersection(self, ego_state):
-    
         intersection_nodes = self._intersection_nodes
-
         if intersection_nodes is None:
-
             return None
-
         #Find the intersection at minimum distance which is forward
-
         dist = np.Inf #distance between your x and intersection x
-
         next_intersection = None
 
         for point in intersection_nodes:
-
-            x_p, y_p = point[0], point[1]
-
-            #local_point = from_global_to_local_frame(ego_state, (x_p, y_p))
-
-
-
-            #if local_point[0]>0: #se sta davanti
-
-
-
             distance = np.linalg.norm(np.array(ego_state[:2])-np.array(point[:2]))
-
-
-
             if distance<dist: #Lo prendo a minima distanza da me
-
                 dist = distance
-
                 next_intersection = point
-
-
 
         return next_intersection
 
-    def get_kf_pos(self):
-        return self._kf_pos
 
     def get_meas_prob(self):
         return self._pos_prob
@@ -131,25 +74,13 @@ class TrafficLightTracking:
     def update(self, ego_state, pos_global, color):
         x_global, y_global = pos_global
 
-        """
-        ### USE KALMAN FILTER
-        self._measurements.append((x_global, y_global))
-        if len(self._measurements)>self.min_measurements:
-            meas = np.asarray(self._measurements)
-            #print("meas:", meas)
-            #print("Size: ", meas)
-            self._kf_pos = apply_kalman_filter(meas)
-        """
-
-        
-
 
         #Filter points
         #Use distance from next intersection to filter out data from other signals
         
         #Find my next intersections
 
-        #Filtra i punti che hanno distanza maggiore di 20 dalla prossima intersezione
+        
         pos_local = from_global_to_local_frame(ego_state, pos_global)
         next_intersection = self.find_next_intersection(ego_state)
         #print("New points: ", pos_global)
@@ -158,7 +89,7 @@ class TrafficLightTracking:
             return
         
         next_intersection = next_intersection[:2]
-        
+        #Filtra i punti che hanno distanza maggiore di 20 dalla prossima intersezione
         next_intersection_local = from_global_to_local_frame(ego_state, next_intersection)
         dist_next_intersection_to_point = np.linalg.norm(np.array(pos_global) - np.array(next_intersection))
         if  dist_next_intersection_to_point > 20: #se il punto trovato ha distanza maggiore di 20m  o sta davanti la prossima intersezione, devo scartarlo
@@ -168,7 +99,7 @@ class TrafficLightTracking:
         #Se la misurazione che sto effettuando sta più avanti dell'incrocio più vicino
         # oppure sta a sinistra del veicolo, skippala
 
-        if pos_local[0] > next_intersection_local[0] or pos_local[0]<0:
+        if pos_local[0] > next_intersection_local[0] or pos_local[1]<0:
             return
 
         d=np.inf
@@ -180,12 +111,7 @@ class TrafficLightTracking:
             #print("TL meas: ", (x_global, y_global))
             x_l, y_l = from_global_to_local_frame(ego_state, k)
 
-            #print("Local coords: ", x_l, y_l)
-
-            #if x_l > 0 and y_l > 0:
-            #    print("Is at Right")
-
-            if x_l < 0 or abs(y_l) > 5: #se sto nel range di 5 metri
+            if x_l < 0 or abs(y_l) > 5: #se non sto nel range di 5 metri lateralmente al veicolo
                 #print("REMOVE K: ", k)
                 clusters_to_delete.append(k)
                 continue
@@ -221,10 +147,7 @@ class TrafficLightTracking:
         for k in self.groups.keys():
             dist = distance.euclidean(np.array(k), np.array(ego_state[:2]))
             x_l, y_l = from_global_to_local_frame(ego_state, k)
-            #add condition that it has to be forward
-            #print("Cluster: ", k)
 
-            #print("my_distance: ", dist)
             if dist<d and len(self.groups[k])>=self.min_measurements and x_l > 0:# and y_l>0:
                 d = dist
                 min_dist_elem = k
@@ -236,14 +159,10 @@ class TrafficLightTracking:
         points = self.groups[min_dist_elem]
         colors = self.color_groups[min_dist_elem]
 
-        #del(self.groups[min_dist_elem])
-        #del(self.color_groups[min_dist_elem])
 
-        #get centroid
         centroid = centeroidnp(np.array(points))
         sum_colors = np.sum(colors)
         color = 1 if  sum_colors > len(colors)//2  else 0 #Majority vote
-        #color = colors[-1]
         return (centroid, color), min_dist_elem
 
 

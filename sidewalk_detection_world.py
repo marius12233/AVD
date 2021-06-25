@@ -13,7 +13,6 @@ import os
 import sys
 sys.path.append(os.path.abspath(sys.path[0] + '/..'))
 
-from lane_detection import lane_detection
 
 # Utils : X - Rotation
 def rotate_x(angle):
@@ -56,7 +55,7 @@ MIN_SLOP_LEFT = 0.2
 MAX_SLOP_LEFT = 0.4
 
 MAX_SLOP_RIGHT = -0.3
-MIN_SLOP_RIGHT = -0.8
+MIN_SLOP_RIGHT = -0.85
 
 LEN_ROAD = 10
 
@@ -252,8 +251,7 @@ class SidewalkFollowing:
             vehicle_frame_x = vehicle_frame[0][0] - 1.5
         
         vehicle_frame_point = np.array([vehicle_frame_x,-vehicle_frame_y])
-        #global_frame_point = from_local_to_global_frame(ego_state, vehicle_frame_point)
 
-        return vehicle_frame_point#global_frame_point
+        return vehicle_frame_point
     
 

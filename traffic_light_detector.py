@@ -1,4 +1,3 @@
-import traffic_light_detection_module 
 from traffic_light_detection_module.predict import *
 import cv2
 import numpy as np
@@ -14,17 +13,13 @@ class TrafficLightDetector:
 
     def __init__(self, model, th_score=0.2):
         self.__model = model
-        self.__bbox=None
+        self.__bbox=None #bboxes on image
         self.__class = None
         self.__img = None
-        self.box = None
-        #self._min_frames_ok = 3 #minimum number of frames 
-        self._max_frame_ok = 1 #number of consecutive frames to detect traffic light 
-        self._counter_consecutive_detection = 0
+        self.box = None #Original box object
         self._mask = None
         self._crop_seg = None
         self._th_score = th_score
-        #self.centerPoint=0
     
     def get_img(self):
         return self.__img
@@ -41,20 +36,13 @@ class TrafficLightDetector:
         box=boxes[0] #the most important
         self.box = box
         score = box.get_score()
-        #print("SCORE: ", score)
         
         if score<self._th_score:
             self.__bbox=None
             return None
-        #print("Score: ", score)
         w,h,_ = img.shape
         self.__class = box.get_label()
         self.__bbox = (int(box.xmin*w), int(box.ymin*h), int(box.xmax*w), int(box.ymax*h))
-        self._counter_consecutive_detection+=1
-        if self._counter_consecutive_detection < self._max_frame_ok:
-            return None
-        else:
-            self._counter_consecutive_detection=0
 
         return self.__bbox
 
@@ -84,33 +72,11 @@ class TrafficLightDetector:
         return crop_img
 
 
-    def detect_circular_signal(self, palette_img=None):
-        bbox = self.get_enlarged_bbox()
-        if bbox is None or palette_img is None or self._mask is None:
-            return None
-
-        img = self.__img
-        crop_img = img[bbox[1]:bbox[3], bbox[0]:bbox[2]]
-        #mask = mask.reshape(mask.shape[0],mask.shape[1],1)
-        #print("Shapes: ", crop_img.shape, self._mask.shape)
-        gray = cv2.cvtColor(crop_img, cv2.COLOR_BGR2GRAY)
-        blurred = cv2.medianBlur(gray, 3)
-
-        cv2.imshow("crop_img: ", crop_img)
-        cv2.waitKey(10)
-        cv2.imwrite("CropImg.jpg", crop_img)
-
-        circles = circle_detection(blurred, display=True)
-        return circles
-
-
-
     def get_point_with_segmentation(self, seg_img=None):
 
         bbox = self.get_enlarged_bbox()
         if bbox is None or seg_img is None:
             return None
-        #no 0,1,2,3
         #road, lane-marking, traffic sign, sidewalk, fence, pole, wall, building, vegetation, vehicle, pedestrian, and other
         tl_label = 12
         crop_seg=seg_img[bbox[1]:bbox[3], bbox[0]:bbox[2]]
@@ -123,13 +89,11 @@ class TrafficLightDetector:
         if tl_mask.sum()==0:
             return None
 
-        #print("TLMask sum: ", tl_mask.sum())
 
         #Use moment to find the center of a mass
         M=cv2.moments(tl_mask)
         cX = int(M["m10"] / M["m00"])
         cY = int(M["m01"] / M["m00"])
-        #self.centerPoint = (cX, cY)
 
         cX = bbox[0] + cX
         cY = bbox[1] + cY
@@ -145,7 +109,6 @@ class TrafficLightDetector:
             return img
         label = self.is_red()
         c = (0,255,0) if label == 0 else (0,0,255)
-        #img = np.copy(img)
         bbox = self.get_bbox()
         cv2.rectangle(img, (bbox[0], bbox[1]), (bbox[2], bbox[3]), c)
         return img 
@@ -156,7 +119,6 @@ class TrafficLightDetector:
             return img
         label = self.is_red()
         c = (0,255,0) if label == 0 else (0,0,255)
-        #img = np.copy(img)
         bbox = self.get_enlarged_bbox()
         x_c = bbox[0] + (bbox[2] - bbox[0])//2 #take the center point
         y_c = bbox[1] + (bbox[3] - bbox[1])//2

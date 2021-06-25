@@ -80,12 +80,12 @@ class BehaviouralPlanner:
         if self._state == FOLLOW_LANE:
             
             #Proviamo a diminuire il lookahead nelle curve per non far allargare troppo l'auto
-            """
+            
             if self._nearest_intersection and np.linalg.norm(np.array(self._nearest_intersection[:2]) - np.array(ego_state[:2]) )<=15:
                 is_turn = self._intersections_turn.get(str(self._nearest_intersection[:2]))
                 if is_turn:
                     self._lookahead=16
-            """
+            
             
 
             #print("FOLLOW_LANE")
@@ -179,7 +179,8 @@ class BehaviouralPlanner:
                 # EMERGENCY STOP; altrimenti se è il vecchio calcolo la distanza da lui.
                 #Se con la decelerazione massima non riesco a fermarmi prima di dove si trova il pedone
                 #vado nello stato di emergency stop!
-                if pedestrian_ahead_found_distance < goal_dist - 0.1: 
+                goal_distance = goal_dist - 0.1 if goal_dist > 0 else goal_dist + 0.1
+                if pedestrian_ahead_found_distance < goal_distance:#goal_dist - 0.1: 
                     d_real = closed_loop_speed**2/5
                     #goal_index=waypoint_precise_adder(waypoints,pedestrian_ahead_found_distance, closest_index, goal_index, 0.1, ego_state, offset=0)
                     if self._pedestrian_stopped_index != self._closest_pedestrian["index"]:
@@ -281,11 +282,10 @@ class BehaviouralPlanner:
             print("TL is None")
             return None
         
-        print("STATO SEMAFORO: is next: {}, color:{}, changed:{}, changed color:{}"
+        print("STATO SEMAFORO: is next: {}, color:{}, changed:{}"
         .format(self._traffic_light.is_next(), 
         self._traffic_light._color, 
-        self._traffic_light.has_changed, 
-        self._traffic_light._changed_color,
+        self._traffic_light.has_changed
         ))
         
         #Se il semaforo corrente non è più il prossimo dici che non c'è
@@ -564,6 +564,7 @@ class BehaviouralPlanner:
                 prob_coll_pedestrian.append(pedestrian_bb[i])
         return prob_coll_pedestrian
                     
+
 
 
 

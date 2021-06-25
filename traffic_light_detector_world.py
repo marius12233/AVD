@@ -11,7 +11,6 @@ import sys
 from traffic_light_detector import TrafficLightDetector, get_model
 
 sys.path.append(os.path.abspath(sys.path[0] + '/..'))
-from traffic_sign_recognition import TrafficLightRecognition
 # Utils : X - Rotation
 def rotate_x(angle):
     R = np.mat([[ 1,         0,           0],
@@ -115,17 +114,6 @@ class TrafficLightDetectorWorld(TrafficLightDetector):
             if point is None:
                 return
             x,y = point
-        """
-        #Filter for traffic light signal
-        img = self.get_img_cropped()
-        cls_idx, score = TrafficLightRecognition().predict(img)
-        #11 is the tl label
-        print("TL Recognition pred, score: ", cls_idx, score)
-        
-        if cls_idx<9:
-            if score>0.2:
-                return None
-        """
 
         points.append((x,y))
 

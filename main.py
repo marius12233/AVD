@@ -31,7 +31,7 @@ from carla.client     import make_carla_client, VehicleControl
 from carla.settings   import CarlaSettings
 from carla.tcp        import TCPConnectionError
 from carla.controller import utils
-from carla.sensor import Camera, Lidar
+from carla.sensor import Camera
 from carla.image_converter import *
 from carla.planner.city_track import CityTrack
 from carla.planner.map import CarlaMap
@@ -39,7 +39,6 @@ from traffic_light_detector import TrafficLightDetector, load_model
 from traffic_light_detector_world import TrafficLightDetectorWorld
 from traffic_light_tracking import TrafficLightTracking
 from traffic_light import TrafficLight
-from lane_detection_and_following import LaneFollowing
 from sidewalk_detection_world import SidewalkFollowing
 from carla.transform import Transform
 from numpy.linalg import pinv, inv
@@ -47,8 +46,8 @@ from numpy.linalg import pinv, inv
 ###############################################################################
 # CONFIGURABLE PARAMENTERS DURING EXAM
 ###############################################################################
-PLAYER_START_INDEX = 15#24#7#2#24#2#24#7#2#133#2#7#24#24#139#24#147#24#17#24#11#120#151#19#120#24#19#24#8#120#8#120#89##124#133#13#6#22#6#135#135#141#66 150         #  spawn index for player
-DESTINATION_INDEX =  90#2415#23#28#23#90#15#23#63#23#15#145#145#59#90#151#90#64#147#13#90#147#90#143#90#139#63 #139#63#65#55#65#15#55#15#53#53#90#18        # Setting a Destination HERE
+PLAYER_START_INDEX = 2#7#141#15#24#7#2#24#2#24#7#2#133#2#7#24#24#139#24#147#24#17#24#11#120#151#19#120#24#19#24#8#120#8#120#89##124#133#13#6#22#6#135#135#141#66 150         #  spawn index for player
+DESTINATION_INDEX =  23#15#56#90#2415#23#28#23#90#15#23#63#23#15#145#145#59#90#151#90#64#147#13#90#147#90#143#90#139#63 #139#63#65#55#65#15#55#15#53#53#90#18        # Setting a Destination HERE
 NUM_PEDESTRIANS        = 200      # total number of pedestrians to spawn
 NUM_VEHICLES           = 60      # total number of vehicles to spawn
 SEED_PEDESTRIANS       = 0      # seed for pedestrian spawn randomizer
@@ -309,21 +308,7 @@ def make_carla_settings(args):
 
 
 
-    # Lidar Specification
-    lidar = Lidar("Lidar32")
-    lidar.set(
-        Channels=32,
-        Range=50,
-        PointsPerSecond=90000,
-        RotationFrequency=100,
-        UpperFovLimit=10,#30,
-        LowerFovLimit=-30,#-10
-    )
-    lidar.set_position(x=0, y=0, z=1.40)
-    lidar.set_rotation(pitch=10, yaw=0, roll=0)
-    settings.add_sensor(lidar)
 
-    return settings
 
 class Timer(object):
     """ Timer Class
@@ -985,7 +970,6 @@ def exec_waypoint_nav_demo(args):
         model = load_model()
 
         sidewalk_following = SidewalkFollowing(camera_parameters)
-        lane_following = LaneFollowing(camera_parameters)
 
         traffic_light = TrafficLight()
         bp.set_traffic_light(traffic_light)
@@ -1134,7 +1118,8 @@ def exec_waypoint_nav_demo(args):
 
                     coords_2d = ( int(x_2d[0]), int(y_2d[0]) )
 
-                    cv2.circle(cam_data, (int(x_2d[0]), int(y_2d[0])), 1, (0,0,255), thickness=-1)
+                    if int(x_2d[0]) >0 and int(x_2d[0]) <= 416 and int(y_2d[0])>0 and int(y_2d[0])<416:
+                        cv2.circle(cam_data, (int(x_2d[0]), int(y_2d[0])), 1, (0,0,255), thickness=-1)
                         #print("Coords: ", (int(x_2d[0]), int(y_2d[0])) )
                         
                         #cv2.putText(cam_data, str(len(coords_2d)-1), (int(x_2d[0]), int(y_2d[0])), cv2.FONT_HERSHEY_SIMPLEX,1,(0,0,255))
@@ -1330,58 +1315,37 @@ def exec_waypoint_nav_demo(args):
                         traffic_light._last_mask_cropped = tl_right_detector._mask
                         traffic_light.update(res_r[0], res_r[1], cluster_res_r)
 
-                        traffic_light.set_complete_image(camera_data_r )
-                        traffic_light.set_bbox(tl_right_detector.get_enlarged_bbox())
-                        traffic_light.set_seg_img(labels_to_array(segmentation_data_r))
-
-                        #bp.set_traffic_light(traffic_light)
 
                     #Ho bisogno di dire che res_r deve essere None perché può darsi che il prev ok di prima era ok ma poi il res_r corrente non c'è 
                     if res_r is None or not traffic_light._prev_ok: #Se non c'è la detection della camera destra oppure con quella non vedo bene il colore vado con la centrale 
                         if vehicle_bbox_traffic_light is not None:
-                            #print("Clusters: ", tl_tracking.get_clusters())
                             if res is not None:
-                                #print("RESULT: ", res)
                                 visualize_point(map, res[0][0], res[0][1], zr, img_map, color=(238,130,238), r=10)
                                 traffic_light._last_img_cropped = tl_detector.get_img_cropped()
                                 traffic_light._last_mask_cropped = tl_detector._mask
                                 traffic_light.update(res[0], res[1], cluster_res)
 
-                                traffic_light.set_complete_image(camera_data)
-                                traffic_light.set_bbox(tl_detector.get_enlarged_bbox())
-                                traffic_light.set_seg_img(labels_to_array(segmentation_data))
-
-                                #bp.set_traffic_light(traffic_light)
                 
                 elif vehicle_bbox_traffic_light is not None:
                     
-                    #print("Clusters: ", tl_tracking.get_clusters())
                     if res is not None:
-                       # print("RESULT: ", res)
                         visualize_point(map, res[0][0], res[0][1], zr, img_map, color=(238,130,238), r=10)
                         traffic_light._last_img_cropped = tl_detector.get_img_cropped()
                         traffic_light._last_mask_cropped = tl_detector._mask
                         traffic_light.update(res[0], res[1], cluster_res)
 
-                        traffic_light.set_complete_image(camera_data)
-                        traffic_light.set_bbox(tl_detector.get_enlarged_bbox())
-                        traffic_light.set_seg_img(labels_to_array(segmentation_data))
 
-                        #bp.set_traffic_light(traffic_light)
                 
                 else:
-                    #print("No traffic Light")
-                    ego_x, ego_y, _, _, _, ego_yaw = get_current_pose(measurement_data)
-                    ego_state = [ego_x, ego_y, ego_yaw] #TODO vehicle location
-                    traffic_light.no_traffic_light_detection(ego_state, bp._state)
-                    #bp._traffic_light = traffic_light
+                    traffic_light.no_traffic_light_detection(ego_state)
+                
+                if traffic_light._prev_ok==False: 
+                    print("Troppo vicino da non vedere il colore!!")
+                    traffic_light.no_traffic_light_detection(ego_state)
+                
+                
 
-                kf_pos = tl_tracking.get_kf_pos()
-                if not kf_pos is None:
-                    #pass
-                    print("KF POS: ", kf_pos)
-                    
-                    visualize_point(map, int(kf_pos[0]), int(kf_pos[1]), 1, img_map, color=(0,0,0), r=5)
+
                 
                 ###################################################################################
 
