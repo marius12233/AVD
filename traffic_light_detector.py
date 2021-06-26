@@ -25,6 +25,15 @@ class TrafficLightDetector:
         return self.__img
 
     def find_traffic_light(self, img):
+        """[summary]
+
+        Args:
+            img ([ndarray]): [Image to feed in the model to obtain detection]
+
+        Returns:
+            [Tuple]: [bounding box of traffic light in the image]
+        """
+
         if img is None:
             return None
         boxes = self.__model.predict(img)
@@ -52,6 +61,11 @@ class TrafficLightDetector:
     
 
     def get_enlarged_bbox(self):
+        """Enlarge bbox to catch the traffic light even if it is not in the original bounding box
+
+        Returns:
+            [type]: [description]
+        """
         bbox = self.get_bbox()
         if bbox is None:
             return None
@@ -84,11 +98,8 @@ class TrafficLightDetector:
         tl_mask = crop_seg==tl_label
         tl_mask = tl_mask.astype(np.uint8)
         self._mask = tl_mask
-        # calculate x,y coordinate of center
-
         if tl_mask.sum()==0:
             return None
-
 
         #Use moment to find the center of a mass
         M=cv2.moments(tl_mask)

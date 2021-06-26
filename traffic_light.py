@@ -14,7 +14,6 @@ class TrafficLight:
         self._measures = []
         self._cluster_belongs = None #Tuple
         self._is_next = False #it is used to say if the TL represented by this class is the next tl for the vehicle
-        self.has_changed = True #It is used to say if TL has changed cluster at which belongs
         self._last_img_cropped = None
         self._last_mask_cropped = None
         self._prev_ok = False
@@ -25,7 +24,7 @@ class TrafficLight:
             return True
         return False
     
-    def get_pos(self):
+    def get_position(self):
         return self._cluster_belongs
     
     def get_color(self):
@@ -46,7 +45,7 @@ class TrafficLight:
 
         Args:
             pos (Tuple): [The last position detected for traffic light]
-            color (int): [color deetcted for traffic light]
+            color (int): [color detected for traffic light]
             cluster (Tuple): [cluster wichs tl belongs]
         """
         if self._last_img_cropped is not None:
@@ -68,7 +67,6 @@ class TrafficLight:
             self._cluster_belongs = cluster
             self._measures = [pos]
             self._pos = pos
-            
             self._color = color
             self._is_next = True
             
@@ -86,7 +84,6 @@ class TrafficLight:
             self._pos = pos
             self._color = color
             self._is_next = True
-            self.has_changed = True
         
 
     def no_traffic_light_detection(self, ego_state): #Viene chiamata quando non c'è detection di semafori: se non trovi più il semaforo e esso sta dietro il veicolo il semaforo corrente non è più il prossimo

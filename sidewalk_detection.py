@@ -25,8 +25,7 @@ def image_sidewalk_filter_and_crop(image, use_roi = False):
     gray = np.zeros((image.shape[0],image.shape[1]), np.uint8)
     
     # Filter Road only 7
-    # gray[image == 6] = 255
-    #Ti do la linea della corsia
+    #We use even the central line
     gray[image == 7] = 255
     gray[image == 6] = 255
     
@@ -35,12 +34,7 @@ def image_sidewalk_filter_and_crop(image, use_roi = False):
     cv2.imshow("Sidewalk dilate",gray)
     cv2.waitKey(10)
     gray = cv2.Canny(gray,150,200)
-    # Creating kernel
-    #kernel = np.ones((5, 5), np.uint8)
-    
-    # Using cv2.erode() method 
-    #image = cv2.erode(gray, kernel)
-    # gray[image == 8] = 255
+
     
     cv2.imshow("Sidewalk",gray)
     cv2.waitKey(10)
@@ -56,7 +50,7 @@ def sidewalk_detection(image, line_optimized = True, show_intermediate_steps = T
     canny_roi_image = image_sidewalk_filter_and_crop(image)
     
 
-    # Line detection
+    # Lines detection
     lines = cv2.HoughLinesP(canny_roi_image, 5,  np.pi / 180, 200 * width // 800 , minLineLength=100 * width // 800, maxLineGap=30 * width // 800) # 2, np.pi / 180, 100,np.array([]), minLineLength=40, maxLineGap=5)
 
     return lines
