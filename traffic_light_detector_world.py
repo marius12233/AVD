@@ -49,6 +49,10 @@ def to_rot(r):
     return Rz*Ry*Rx
 
 class TrafficLightDetectorWorld(TrafficLightDetector):
+    """It hinerits from TrafficLightDetector methods to process the detection
+        by image, filter TL from segmentation map and find the 3D measurement corresponding 
+        to a pixel on image that is contained in the traffic light shape.
+    """
 
     def __init__(self, camera_parameters, model):
         super().__init__(model)
@@ -90,6 +94,17 @@ class TrafficLightDetectorWorld(TrafficLightDetector):
  
     
     def detect(self, image, depth_data, speed_limit = 5.0, seg_img=None, palette_img=None):
+        """[summary]
+
+        Args:
+            image (ndarray): [description]
+            depth_data (ndarray): [description]
+            speed_limit (float, optional): [description]. Defaults to 5.0.
+            seg_img (ndarray): [description]. Defaults to None.
+
+        Returns:
+            (List): it contains a single point in the real world corresponding to a point on traffic light
+        """
         #height, width, _ = image.shape
         vehicle_frame_list = []
 

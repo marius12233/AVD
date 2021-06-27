@@ -46,8 +46,8 @@ from numpy.linalg import pinv, inv
 ###############################################################################
 # CONFIGURABLE PARAMENTERS DURING EXAM
 ###############################################################################
-PLAYER_START_INDEX = 147#2#7#141#15#24#7#2#24#2#24#7#2#133#2#7#24#24#139#24#147#24#17#24#11#120#151#19#120#24#19#24#8#120#8#120#89##124#133#13#6#22#6#135#135#141#66 150         #  spawn index for player
-DESTINATION_INDEX =  56#23#15#56#90#2415#23#28#23#90#15#23#63#23#15#145#145#59#90#151#90#64#147#13#90#147#90#143#90#139#63 #139#63#65#55#65#15#55#15#53#53#90#18        # Setting a Destination HERE
+PLAYER_START_INDEX = 2#147#2#7#141#15#24#7#2#24#2#24#7#2#133#2#7#24#24#139#24#147#24#17#24#11#120#151#19#120#24#19#24#8#120#8#120#89##124#133#13#6#22#6#135#135#141#66 150         #  spawn index for player
+DESTINATION_INDEX =  23#56#23#15#56#90#2415#23#28#23#90#15#23#63#23#15#145#145#59#90#151#90#64#147#13#90#147#90#143#90#139#63 #139#63#65#55#65#15#55#15#53#53#90#18        # Setting a Destination HERE
 NUM_PEDESTRIANS        = 200      # total number of pedestrians to spawn
 NUM_VEHICLES           = 60      # total number of vehicles to spawn
 SEED_PEDESTRIANS       = 0      # seed for pedestrian spawn randomizer
@@ -1254,23 +1254,12 @@ def exec_waypoint_nav_demo(args):
                     nearest_tl = tl_tracking.get_nearest_tl(ego_state)
                     if nearest_tl is not None:
                         res, cluster_res = nearest_tl
-                        #traffic_light.update(res[0], res[1], cluster_res)
-                        
-                    #else:
-                        #print("Traffic light not found: Clusters: ", tl_tracking.get_clusters())
-
-
-
-                    #if abs(x) < 40 and abs(y)<40:
                     visualize_point(map, x_global, y_global, zr, img_map, color=(0,225,225))
 
                 #print("Local coordinates traffic lights: ", vehicle_bbox_traffic_light)
                 #Visualize traffic light point on world
                 if vehicle_bbox_traffic_light_r is not None:
-                    #point_min = vehicle_bbox_traffic_light[0]#Prendiamo il punto in alto a sx
-                    #xmin,ymin,v = point_min
-                    #point_max = vehicle_bbox_traffic_light[1]#Prendiamo il punto in alto a sx
-                    #xmax,ymax,v = point_max
+
                     xr,yr,vr = vehicle_bbox_traffic_light_r[0]
                     
                     #Transformation
@@ -1279,15 +1268,7 @@ def exec_waypoint_nav_demo(args):
                     y_globalr = ego_state[1] + xr*sin(ego_state[2]) + \
                                                     yr*cos(ego_state[2])
                     
-                    #print("Global coordinates: ", (x_global, y_global))
-                    """
-                    res = None
-                    if xr>0: #sta a dx
-                        tl_tracking.track(ego_state[:2], (x_globalr, y_globalr), tl_right_detector.is_red())
-                        res = tl_tracking.get_next_traffic_light()
-                        if res is not None and res[0] is not None:
-                            visualize_point(map, int(res[0][0]), int(res[0][1]), zr, img_map, color=(238,130,238), r=20)
-                    """
+
                     tl_tracking.track(ego_state, (xr,yr), tl_right_detector.is_red())
                     
 
@@ -1295,11 +1276,7 @@ def exec_waypoint_nav_demo(args):
                     if nearest_tl is not None:
                         res_r, cluster_res_r = nearest_tl
                         #traffic_light.update(res_r[0], res_r[1], cluster_res_r)
-                    else:
-                        clusters = tl_tracking.get_clusters()
-                        #print("Traffic light not found: Clusters: ", tl_tracking.get_clusters())
 
-                    #if abs(xr) < 60 and abs(yr)<60:
                     visualize_point(map, x_globalr, y_globalr, zr, img_map, color=(225,225,0), text=False)
                     
                 print("Clusters: ", tl_tracking.get_clusters())
@@ -1429,20 +1406,6 @@ def exec_waypoint_nav_demo(args):
                         cc = lp._collision_checker.collision_check(paths, [bb])
                         collision_check_array=list(np.array(cc) & np.array(collision_check_array))
 
-                    """
-                    if sum(collision_check_array)>=2:
-                        if bp._state == behavioural_planner.OVERTAKING:
-                            collision_check_array[0]=False #TODO: avoid this
-                        elif bp._state == behavioural_planner.FOLLOW_LANE:
-                            collision_check_array[-1]=False
-                    """
-
-                    #if bp._state == behavioural_planner.OVERTAKING: #Se sto ancora sorpassando togli le ultime 3:
-
-                    #    collision_check_array[-1]=False #TODO: avoid this
-                    #    collision_check_array[-2]=False #TODO: avoid this
-                    #    collision_check_array[-3]=False #TODO: avoid this
-                    #collision_check_array[-2]=False
                 # Compute the best local path.
                 best_index = lp._collision_checker.select_best_path_index(paths, collision_check_array, bp._goal_state)
                 # If no path was feasible, continue to follow the previous best path.
@@ -1527,63 +1490,66 @@ def exec_waypoint_nav_demo(args):
             elif local_waypoints == None:
                 pass
             else:
-                # Update live plotter with new feedback
-                trajectory_fig.roll("trajectory", current_x, current_y)
-                trajectory_fig.roll("car", current_x, current_y)
-                
-                # Load parked car points
-                if len(obstacles) > 0:
-                    x = obstacles[:,:,0]
-                    y = obstacles[:,:,1]
-                    x = np.reshape(x, x.shape[0] * x.shape[1])
-                    y = np.reshape(y, y.shape[0] * y.shape[1])
 
-                    trajectory_fig.roll("obstacles_points", x, y)
+                try:
+                    # Update live plotter with new feedback
+                    trajectory_fig.roll("trajectory", current_x, current_y)
+                    trajectory_fig.roll("car", current_x, current_y)
+                    
+                    # Load parked car points
+                    if len(obstacles) > 0:
+                        x = obstacles[:,:,0]
+                        y = obstacles[:,:,1]
+                        x = np.reshape(x, x.shape[0] * x.shape[1])
+                        y = np.reshape(y, y.shape[0] * y.shape[1])
 
-                
-                forward_speed_fig.roll("forward_speed", 
-                                       current_timestamp, 
-                                       current_speed)
-                forward_speed_fig.roll("reference_signal", 
-                                       current_timestamp, 
-                                       controller._desired_speed)
-                throttle_fig.roll("throttle", current_timestamp, cmd_throttle)
-                brake_fig.roll("brake", current_timestamp, cmd_brake)
-                steer_fig.roll("steer", current_timestamp, cmd_steer)
+                        trajectory_fig.roll("obstacles_points", x, y)
 
-                # Local path plotter update
-                if frame % LP_FREQUENCY_DIVISOR == 0:
-                    path_counter = 0
-                    for i in range(NUM_PATHS):
-                        # If a path was invalid in the set, there is no path to plot.
-                        if path_validity[i]:
-                            # Colour paths according to collision checking.
-                            if not collision_check_array[path_counter]:
-                                colour = 'r'
-                            elif i == best_index:
-                                colour = 'k'
+                    
+                    forward_speed_fig.roll("forward_speed", 
+                                        current_timestamp, 
+                                        current_speed)
+                    forward_speed_fig.roll("reference_signal", 
+                                        current_timestamp, 
+                                        controller._desired_speed)
+                    throttle_fig.roll("throttle", current_timestamp, cmd_throttle)
+                    brake_fig.roll("brake", current_timestamp, cmd_brake)
+                    steer_fig.roll("steer", current_timestamp, cmd_steer)
+
+                    # Local path plotter update
+                    if frame % LP_FREQUENCY_DIVISOR == 0:
+                        path_counter = 0
+                        for i in range(NUM_PATHS):
+                            # If a path was invalid in the set, there is no path to plot.
+                            if path_validity[i]:
+                                # Colour paths according to collision checking.
+                                if not collision_check_array[path_counter]:
+                                    colour = 'r'
+                                elif i == best_index:
+                                    colour = 'k'
+                                else:
+                                    colour = 'b'
+                                trajectory_fig.update("local_path " + str(i), paths[path_counter][0], paths[path_counter][1], colour)
+                                path_counter += 1
                             else:
-                                colour = 'b'
-                            trajectory_fig.update("local_path " + str(i), paths[path_counter][0], paths[path_counter][1], colour)
-                            path_counter += 1
-                        else:
-                            trajectory_fig.update("local_path " + str(i), [ego_state[0]], [ego_state[1]], 'r')
-                # When plotting lookahead path, only plot a number of points
-                # (INTERP_MAX_POINTS_PLOT amount of points). This is meant
-                # to decrease load when live plotting
-                wp_interp_np = np.array(wp_interp)
-                path_indices = np.floor(np.linspace(0, 
-                                                    wp_interp_np.shape[0]-1,
-                                                    INTERP_MAX_POINTS_PLOT))
-                trajectory_fig.update("selected_path", 
-                        wp_interp_np[path_indices.astype(int), 0],
-                        wp_interp_np[path_indices.astype(int), 1],
-                        new_colour=[1, 0.5, 0.0])
+                                trajectory_fig.update("local_path " + str(i), [ego_state[0]], [ego_state[1]], 'r')
+                    # When plotting lookahead path, only plot a number of points
+                    # (INTERP_MAX_POINTS_PLOT amount of points). This is meant
+                    # to decrease load when live plotting
+                
+                    wp_interp_np = np.array(wp_interp)
+                    path_indices = np.floor(np.linspace(0, 
+                                                        wp_interp_np.shape[0]-1,
+                                                        INTERP_MAX_POINTS_PLOT))
+                    trajectory_fig.update("selected_path", 
+                            wp_interp_np[path_indices.astype(int), 0],
+                            wp_interp_np[path_indices.astype(int), 1],
+                            new_colour=[1, 0.5, 0.0])
 
 
                 # Refresh the live plot based on the refresh rate 
                 # set by the options
-                try:
+                
                     if enable_live_plot and \
                     live_plot_timer.has_exceeded_lap_period():
                         lp_traj.refresh()

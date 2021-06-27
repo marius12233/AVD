@@ -25,13 +25,13 @@ class TrafficLightDetector:
         return self.__img
 
     def find_traffic_light(self, img):
-        """[summary]
+        """Apply the detector to the image, store and return the result 
 
         Args:
-            img ([ndarray]): [Image to feed in the model to obtain detection]
+            img (ndarray): Image to feed in the model to obtain detection
 
         Returns:
-            [Tuple]: [bounding box of traffic light in the image]
+            (Tuple): bounding box of traffic light in the image
         """
 
         if img is None:
@@ -64,7 +64,7 @@ class TrafficLightDetector:
         """Enlarge bbox to catch the traffic light even if it is not in the original bounding box
 
         Returns:
-            [type]: [description]
+            [Tuple]: bbox enlarged
         """
         bbox = self.get_bbox()
         if bbox is None:
@@ -87,6 +87,14 @@ class TrafficLightDetector:
 
 
     def get_point_with_segmentation(self, seg_img=None):
+        """[summary]
+
+        Args:
+            seg_img (ndarray): The segmentation mask provided by Carla sensors. Defaults to None.
+
+        Returns:
+            (Tuple): coords of the center of mass of traffic light in segmentation mask
+        """
 
         bbox = self.get_enlarged_bbox()
         if bbox is None or seg_img is None:
@@ -114,7 +122,7 @@ class TrafficLightDetector:
     def is_red(self):
         return self.__class
     
-
+    #drawing methods
     def draw_boxes_on_image(self, img):
         if self.__bbox is None or self.__img is None:
             return img

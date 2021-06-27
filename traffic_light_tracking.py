@@ -11,11 +11,14 @@ TL_RANGE_INTERSECTION = 20
 
 
 class TrafficLightTracking:
+    """This class track the points corresponding to the position of the traffic light, filter the measurements 
+        and collect them into clusters.
+    """
 
     def __init__(self, intersection_nodes=None):
         self.groups = {} #clusters to contains measurements
         self.color_groups = {} #mantains the last 7 measurements for the color
-        self.max_meters = 15 #The radius of the circle to inglobe the measurements
+        self.max_meters = 10 #The radius of the cluster to inglobe the measurements
         self.min_measurements = 3 #the minimum measurements we need to consider a cluster
         self._intersection_nodes = intersection_nodes
         
@@ -61,6 +64,15 @@ class TrafficLightTracking:
     
 
     def update(self, ego_state, pos_global, color):
+        """Update clusters measurements. After filtering according to some rules,
+            add a measurement in a cluster if the measurement
+            has position around 10m to the cluster, otherwise create a new cluster. 
+
+        Args:
+            ego_state (ndarray): Global position of the vehicle
+            pos_global (ndarray): Global position of current measurement
+            color (int): Color inferenced by detector
+        """
         x_global, y_global = pos_global
         #Filter points
         #Use distance from next intersection to filter out data from other signals
@@ -116,6 +128,14 @@ class TrafficLightTracking:
 
 
     def get_nearest_tl(self, ego_state):
+        """This methos returns the measurements, color and cluster of the nearest traffic light detected
+
+        Args:
+            ego_state (ndarray): Global vehicle's position
+
+        Returns:
+            (Tuple): centroid of measurements, color and cluster centre of the nearest traffic light
+        """
         #compute distance between each center of cluster
         d=np.inf
         min_dist_elem = None
