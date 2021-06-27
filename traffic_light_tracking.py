@@ -18,7 +18,7 @@ class TrafficLightTracking:
     def __init__(self, intersection_nodes=None):
         self.groups = {} #clusters to contains measurements
         self.color_groups = {} #mantains the last 7 measurements for the color
-        self.max_meters = 10 #The radius of the cluster to inglobe the measurements
+        self.max_meters = 15 #The radius of the cluster to inglobe the measurements
         self.min_measurements = 3 #the minimum measurements we need to consider a cluster
         self._intersection_nodes = intersection_nodes
         

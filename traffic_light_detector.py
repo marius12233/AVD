@@ -9,7 +9,8 @@ def load_model():
     return model
 
 class TrafficLightDetector:
-
+    """This class detects traffic light on image. It has the methods to aapply some postprocessing actions
+    """
 
     def __init__(self, model, th_score=0.2):
         self.__model = model

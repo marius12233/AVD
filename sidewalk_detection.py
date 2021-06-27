@@ -25,7 +25,7 @@ def image_sidewalk_filter_and_crop(image, use_roi = False):
     gray = np.zeros((image.shape[0],image.shape[1]), np.uint8)
     
     # Filter Road only 7
-    #We use even the central line
+    #We use even the central line to fullfill the road mask and detect only sidewalk lines, not the central.
     gray[image == 7] = 255
     gray[image == 6] = 255
     

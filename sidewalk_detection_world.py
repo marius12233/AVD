@@ -61,6 +61,8 @@ LEN_ROAD = 10
 
 # Lane detection and following class
 class SidewalkFollowing:
+    """This class detect lines corresponding to sidewalk.
+    """
     def __init__(self, camera_parameters):
 
         self.cam_height = camera_parameters['z']
@@ -99,28 +101,12 @@ class SidewalkFollowing:
 
         self._boundaries = [None, None] #Contains the left and right distance from respective lanes
         
-
+    #detect lines on road 
     def detect(self, image, depth_data, ego_state, speed_limit = 5.0, image_rgb = None, show_lines = False,):
-        height, width = image.shape
-
-        road_mask = np.zeros((image.shape[0],image.shape[1]), np.uint8)
-    
-        # Filter Road Mask
-        # road_mask[image == 6] = 255
-        road_mask[image == 7] = 255
-        
-        # road_mask[image == 8] = 255
-        sub_mask = np.zeros((image.shape[0],image.shape[1]), np.uint8)
-    
-        # Filter Road Mask
-        # road_mask[image == 6] = 255
-        sub_mask[image == 6] = 255
-        road_mask+=sub_mask
-
-        cv2.imshow("Resulting subtract", road_mask)
-        cv2.waitKey(10)
-
-
+        """It detects lines on image corresponding to sidewalk (central line is filtered out by sidewalk_detection function)
+            It computes the slope and intercept of lines in image, store the distance to left and right sidewalk
+            and return the collection of slopes and intercepts and the point of the segments.
+        """
         # Make lane detection
         lanes = sidewalk_detection(image, show_intermediate_steps=show_lines)
 
