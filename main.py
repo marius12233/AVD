@@ -21,7 +21,7 @@ import behavioural_planner
 import cv2
 import json 
 from math import sin, cos, pi, tan, sqrt
-from utils import from_global_to_local_frame, from_local_to_global_frame
+
 
 # Script level imports
 sys.path.append(os.path.abspath(sys.path[0] + '/..'))
@@ -1326,7 +1326,7 @@ def exec_waypoint_nav_demo(args):
                     cv2.waitKey(10)
 
                 #If there is a lead vehicle we remove from list where we check the collisions
-                if  bp.get_follow_lead_vehicle() :
+                if  bp._follow_lead_vehicle :
 
                     lead_car_state=[prob_obs["vehicle"]["pos"][closest_vehicle_index][0], prob_obs["vehicle"]["pos"][closest_vehicle_index][1], prob_obs["vehicle"]["speed"][closest_vehicle_index]]
                     
@@ -1374,7 +1374,7 @@ def exec_waypoint_nav_demo(args):
                     desired_speed = bp._goal_state[2]
                     
                     decelerate_to_stop = bp._state == behavioural_planner.DECELERATE_TO_STOP
-                    local_waypoints = lp._velocity_planner.compute_velocity_profile(best_path, desired_speed, ego_state, current_speed, decelerate_to_stop, lead_car_state, bp.get_follow_lead_vehicle())
+                    local_waypoints = lp._velocity_planner.compute_velocity_profile(best_path, desired_speed, ego_state, current_speed, decelerate_to_stop, lead_car_state, bp._follow_lead_vehicle)
 
                     if local_waypoints != None:
                         # Update the controller waypoint path with the best local path.

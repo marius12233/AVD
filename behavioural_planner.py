@@ -10,7 +10,7 @@ FOLLOW_LANE = 0
 DECELERATE_TO_STOP = 1
 STAY_STOPPED = 2
 EMERGENCY_STOP = 4
-OVERTAKING = 5
+
 
 # Stop speed threshold
 STOP_THRESHOLD = 0.03
@@ -50,10 +50,6 @@ class BehaviouralPlanner:
     def set_traffic_light(self, traffic_light:TrafficLight):
         if self._traffic_light is None:
             self._traffic_light = traffic_light
-    
-    def get_follow_lead_vehicle(self):
-        return self._follow_lead_vehicle
-
     
     def set_road_handler(self, road_handler):
         self._road_handler = road_handler
