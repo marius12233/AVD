@@ -47,8 +47,8 @@ from road_manage import RoadHandler
 ###############################################################################
 # CONFIGURABLE PARAMENTERS DURING EXAM
 ###############################################################################
-PLAYER_START_INDEX = 2#147#2#7#141#15#24#7#2#24#2#24#7#2#133#2#7#24#24#139#24#147#24#17#24#11#120#151#19#120#24#19#24#8#120#8#120#89##124#133#13#6#22#6#135#135#141#66 150         #  spawn index for player
-DESTINATION_INDEX =  23#56#23#15#56#90#2415#23#28#23#90#15#23#63#23#15#145#145#59#90#151#90#64#147#13#90#147#90#143#90#139#63 #139#63#65#55#65#15#55#15#53#53#90#18        # Setting a Destination HERE
+PLAYER_START_INDEX     = 113         #  spawn index for player
+DESTINATION_INDEX      = 128         # Setting a Destination HERE
 NUM_PEDESTRIANS        = 200      # total number of pedestrians to spawn
 NUM_VEHICLES           = 60      # total number of vehicles to spawn
 SEED_PEDESTRIANS       = 0      # seed for pedestrian spawn randomizer
