@@ -62,7 +62,6 @@ class TrafficLight:
             else:
                 color = self._color
                 self._prev_ok = False
-            print("COLOR: ", "RED" if color else "GREEN" )
         
 
 

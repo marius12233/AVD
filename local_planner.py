@@ -122,12 +122,7 @@ class LocalPlanner:
             goal_t -= 2*pi
         elif goal_t < -pi:
             goal_t += 2*pi
-        
-        print("delta x: ", delta_x)
-        print("delta y: ", delta_y)
-        print("Heading angle: ", heading)
-        print("yaw vehicle: ", ego_state[2])
-        print("Goal t: ", goal_t)
+
 
         # Compute and apply the offset for each path such that
         # all of the paths have the same heading of the goal state, 

@@ -114,7 +114,6 @@ class SidewalkFollowing:
         if lanes is None or len(lanes) == 0:
             print("No point on sidewalk!")
             return []
-        #print(lanes)
 
         lane_image = np.zeros((image.shape[0],image.shape[1]), np.uint8)
         global_lanes = []
@@ -159,9 +158,6 @@ class SidewalkFollowing:
                         left_len = current_len
             
 
-            #print("Points: ", x1,y1,x2,y2)
-            print("m: ", m, " b: ", b)
-
         if right_lane is not None:
             y1,y2 = right_lane[1], right_lane[3]
             point_right = right_lane[:2] if y1 > y2 else right_lane[2:]
@@ -180,15 +176,6 @@ class SidewalkFollowing:
         else:
              self._boundaries[0] = None
              self._boundaries[1] = None            
-            
-
-
-        
-        #print("Point right: ", self._boundaries[1])
-
-        cv2.imshow("Lane Sidewalk", lane_image)
-        cv2.waitKey(10)
-        print("Global lanes: ", global_lanes)
 
 
         return global_lanes, points

@@ -154,7 +154,7 @@ class TrafficLightDetector:
         if img is None:
             return 
         cv2.imshow("img traffic light", img)
-        cv2.waitKey(0)
+        cv2.waitKey(10)
 
 
 if __name__=="__main__":

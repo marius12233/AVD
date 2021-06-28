@@ -42,6 +42,7 @@ from traffic_light import TrafficLight
 from sidewalk_detection_world import SidewalkFollowing
 from carla.transform import Transform
 from numpy.linalg import pinv, inv
+from road_manage import RoadHandler
 
 ###############################################################################
 # CONFIGURABLE PARAMENTERS DURING EXAM
@@ -120,6 +121,8 @@ INTERP_DISTANCE_RES       = 0.01 # distance between interpolated points
 # controller output directory
 CONTROLLER_OUTPUT_FOLDER = os.path.dirname(os.path.realpath(__file__)) +\
                            '/controller_output/'
+#
+display = False
 
 # Camera parameters
 camera_parameters = {}
@@ -520,7 +523,6 @@ def get_map(scene):
     map_name = "Town01.png"#scene.map_name+".png"
     base_dir = "..\\carla\\planner"
     path = os.path.join(base_dir, map_name)
-    print(path)
     img = cv2.imread(path)
     
     carla_map = CarlaMap("Town01", 0.1653, 50)
@@ -554,9 +556,6 @@ def visualize_map(carla_map, img, measurements=None):
 
         cv2.circle(img, (int(x),int(y)), 5, (255,0,0), thickness=-1)
 
-    # Convert world to pixel coordinates
-        #cv2.rectangle(img, (200,200), (600,600), (0,0,255))
-        #img = img[600:1000, 600:2300,:]
     img = cv2.resize(img, (1000,800))
     cv2.imshow("Map", img)
     cv2.waitKey(1)
@@ -680,7 +679,7 @@ def exec_waypoint_nav_demo(args):
         collided_flag_history = [False]  # assume player starts off non-collided
 
 
-        intersections_turn = {}#dict that collects the intersection points which are in a turn
+        intersections_turn = {} #dict that collects the intersection points which are in a turn
         #############################################
         # Settings Waypoints
         #############################################
@@ -755,7 +754,6 @@ def exec_waypoint_nav_demo(args):
                     middle_point = [(start_intersection[0] + end_intersection[0]) /2,  (start_intersection[1] + end_intersection[1]) /2]
 
                     turn_angle = math.atan2((end_intersection[1] - start_intersection[1]),(start_intersection[0] - end_intersection[0]))
-                    #print(turn_angle,  pi / 4, middle_point[0] - center_intersection[0] < 0)
 
                     turn_adjust = 0 < turn_angle < pi / 2 and middle_point[0] - center_intersection[0] < 0
                     turn_adjust_2 =  pi / 2 < turn_angle < pi and middle_point[0] - center_intersection[0] < 0
@@ -960,7 +958,10 @@ def exec_waypoint_nav_demo(args):
                                         STOP_LINE_BUFFER)
         bp = behavioural_planner.BehaviouralPlanner(BP_LOOKAHEAD_BASE,
                                                     LEAD_VEHICLE_LOOKAHEAD)
-        bp.set_intersections_turn(intersections_turn)
+        
+        road_handler = RoadHandler()
+        bp.set_road_handler(road_handler)
+        road_handler.set_intersections_turn(intersections_turn)
         
         #############################################
         # Perception modules
@@ -968,17 +969,11 @@ def exec_waypoint_nav_demo(args):
         model = load_model()
 
         sidewalk_following = SidewalkFollowing(camera_parameters)
-
         traffic_light = TrafficLight()
         bp.set_traffic_light(traffic_light)
-
         tl_detector = TrafficLightDetectorWorld(camera_parameters, model)
         tl_right_detector = TrafficLightDetectorWorld(camera_parameters_right, model)
-
-
-
         tl_tracking = TrafficLightTracking(intersection_nodes=intersection_nodes_world)
-
 
 
         #############################################
@@ -1041,16 +1036,7 @@ def exec_waypoint_nav_demo(args):
                                                  prev_collision_other)
             collided_flag_history.append(collided_flag)
 
-
-            ###
-            # Local Planner Update:
-            #   This will use the behavioural_planner.py and local_planner.py
-            #   implementations that the learner will be tasked with in
-            #   the Course 4 final project
-            ###
-
-            ###FROM WORLD TO PIXEL
-            
+            #FROM WORLD TO PIXEL
             world_transform = Transform(
             measurement_data.player_measurements.transform
             )
@@ -1065,7 +1051,6 @@ def exec_waypoint_nav_demo(args):
             Center_Y = camera_height / 2.0
 
 
-
             intrinsic_matrix = np.array([[f, 0, Center_X],
                                         [0, f, Center_Y],
                                         [0, 0, 1]])
@@ -1073,7 +1058,7 @@ def exec_waypoint_nav_demo(args):
             cam_data = sensor_data.get('CameraRGB', None)
             cam_data = to_bgra_array(cam_data)
             cam_data = np.copy(cam_data)
-            # Obtain Lead Vehicle information.
+            # Get the information about external agents (pedestrian and vehicles)
             prob_obs ={}
             prob_obs["vehicle"]={"pos":[],"speed":[],"bounding_box":[], "rot":[], "ori":[], "bounding_box_extent":[]}
             prob_obs["pedestrian"]={"pos":[],"bounding_box":[],"rot":[], "pixel_coords":[]}            
@@ -1100,7 +1085,8 @@ def exec_waypoint_nav_demo(args):
                     bbox_extent = agent.pedestrian.bounding_box.extent
                     pos = agent.pedestrian.transform.location
                     pos_vector = np.array([[pos.x], [pos.y], [pos.z - bbox_extent.z], [1.0]])
-
+                    
+                    #Obtain pixel coordinates from world
                     transformed_3d_pos = np.dot(inv(extrinsic.matrix), pos_vector)
                     pos2d = np.dot(intrinsic_matrix, transformed_3d_pos[:3])
                     coords_2d = None
@@ -1110,7 +1096,6 @@ def exec_waypoint_nav_demo(args):
                         pos2d[1] / pos2d[2],
                         pos2d[2]])
 
-                    #if pos2d[2] > 0:
                     x_2d = camera_width - pos2d[0]
                     y_2d = camera_height - pos2d[1]
 
@@ -1118,17 +1103,12 @@ def exec_waypoint_nav_demo(args):
 
                     if int(x_2d[0]) >0 and int(x_2d[0]) <= 416 and int(y_2d[0])>0 and int(y_2d[0])<416:
                         cv2.circle(cam_data, (int(x_2d[0]), int(y_2d[0])), 1, (0,0,255), thickness=-1)
-                        #print("Coords: ", (int(x_2d[0]), int(y_2d[0])) )
-                        
-                        #cv2.putText(cam_data, str(len(coords_2d)-1), (int(x_2d[0]), int(y_2d[0])), cv2.FONT_HERSHEY_SIMPLEX,1,(0,0,255))
 
-                    
                     prob_obs["pedestrian"]["pixel_coords"].append(coords_2d)
 
                         
 
 
-            #print("My bbox: ", measurement_data.player_measurements.bounding_box.extent)
             # Execute the behaviour and local planning in the current instance
             # Note that updating the local path during every controller update
             # produces issues with the tracking performance (imagine everytime
@@ -1138,7 +1118,7 @@ def exec_waypoint_nav_demo(args):
             # to be operating at a frequency that is a division to the 
             # simulation frequency.
             if frame % LP_FREQUENCY_DIVISOR == 0:
-                                # Visualize Image
+                # Visualize Image
                 # ############################################################## 
                 segmentation_data = sensor_data.get('Segmentation', None)
                 segmentation_data_r = sensor_data.get('SegmentationRight', None)
@@ -1146,7 +1126,8 @@ def exec_waypoint_nav_demo(args):
                 depth_data = sensor_data.get('Depth', None)
                 camera_data_r = sensor_data.get('CameraRGBRight', None)
                 depth_data_r = sensor_data.get("DepthRight", None)
-
+                
+                #Detect traffic light in camera right
                 if camera_data_r is not None and depth_data_r is not None and segmentation_data_r is not None:
                     camera_data_r = to_bgra_array(camera_data_r)
                     depth_data_r = depth_to_array(depth_data_r)
@@ -1159,22 +1140,17 @@ def exec_waypoint_nav_demo(args):
                     image_cityscapes_Segmentationr = np.array(image_cityscapes_Segmentationr,dtype=np.uint8)
                     if bbox is not None:
                         cv2.rectangle(image_cityscapes_Segmentationr, (bbox[0], bbox[1]), (bbox[2], bbox[3]), (0,0,0), thickness=5)
-                    
-                    #cv2.imshow("CameraSegmentationRight", image_cityscapes_Segmentationr)
-                    #cv2.waitKey(10)
+
 
                     vehicle_bbox_traffic_light_r = tl_right_detector.detect(bgr_img_r, depth_data_r, seg_img=labels_to_array(segmentation_data_r), palette_img=image_cityscapes_Segmentationr)
                     camera_data_r = tl_right_detector.draw_enlarged_boxes_on_image(camera_data_r)
                     cv2.imshow("CameraRight", camera_data_r)
                     cv2.waitKey(10)
 
-
-
+                #Detect traffic light in camera center 
                 if camera_data is not None and depth_data is not None and segmentation_data is not None:
                     image_cityscapes_Segmentation = labels_to_cityscapes_palette(sensor_data["Segmentation"])
                     image_cityscapes_Segmentation = np.array(image_cityscapes_Segmentation,dtype=np.uint8)
-                    #cv2.imshow("CameraSegmentation", image_cityscapes_Segmentation)
-                    #cv2.waitKey(10)
 
                     camera_data = to_bgra_array(camera_data)
                     depth_data = depth_to_array(depth_data)  
@@ -1186,18 +1162,16 @@ def exec_waypoint_nav_demo(args):
                     cv2.imshow("CameraRGB", camera_data)
                     cv2.waitKey(10)
 
-                #visualize_waypoints_on_map(map, waypoints, img_map)
-                #img_map_copy = np.copy(img_map)
-                #img_map_copy = img_map.copy()
+                #visualization on map
                 visualize_map(map, img_map, measurements=measurement_data)
                 visualize_waypoints_on_map(map, waypoints, img_map)
                 visualize_goal(map, img_map, waypoints, bp._goal_index)
 
                 #COMPUTE EGO STATE
                 ego_x, ego_y, _, _, _, ego_yaw = get_current_pose(measurement_data)
-                ego_state = [ego_x, ego_y, ego_yaw] #TODO vehicle location
+                ego_state = [ego_x, ego_y, ego_yaw] 
                 
-                ##############Sidewalk tracking
+                #Sidewalk tracking
                 sidew_points = sidewalk_following.detect(labels_to_array(segmentation_data),depth_data, ego_state, show_lines=True, image_rgb=camera_data)
                 if sidew_points is not None and len(sidew_points)>0:
                     sidewalk_lanes, points = sidew_points
@@ -1207,37 +1181,23 @@ def exec_waypoint_nav_demo(args):
                     
                     cv2.imshow("Img with agents: ", cam_data)
                     cv2.waitKey(10)
-                    bp._lanes = sidewalk_lanes
-                    bp._boundaries = sidewalk_following._boundaries
-
-                boundaries = bp._boundaries
-                print("Distance from left: {}\n distance from right: {}".format(boundaries[0], boundaries[1]))
-                #if sidewalk_point is not None and len(sidewalk_point)>0:
-                    #sidewalk_point = from_local_to_global_frame(ego_state, sidewalk_point[:2])
-                    #visualize_point(map, sidewalk_point[0], sidewalk_point[1], 10, img_map, color=(0,0,0))
-
-                
-                #point_on_lane = from_local_to_global_frame(ego_state, point_on_lane[:2])
-                #visualize_point(map, point_on_lane[0], point_on_lane[1], 100, img_map, color=(255,255,225))
-                
+                    road_handler.set_lanes(sidewalk_lanes)
+                    road_handler.set_boundaries(sidewalk_following._boundaries)
 
                 #Display next intersection
                 int_point = tl_tracking.find_next_intersection(ego_state)
                 if int_point is not None:
-                    bp.set_next_intersection(int_point)
+                    road_handler.set_next_intersection(int_point)
                     visualize_point(map, int_point[0], int_point[1], 10, img_map, color=(0,0,225))
                     visualize_rect(map, (int_point[0]-20, int_point[1]-20, int_point[0]+20, int_point[1]+20), 3, img_map, color=(0,0,225))
                 
 
-                res, res_r, kf_pos = [None]*3
+                res, res_r = [None]*2
                 zr = 38
 
                 #Visualize traffic light point on world
                 if vehicle_bbox_traffic_light is not None:
-                    #point_min = vehicle_bbox_traffic_light[0]#Prendiamo il punto in alto a sx
-                    #xmin,ymin,v = point_min
-                    #point_max = vehicle_bbox_traffic_light[1]#Prendiamo il punto in alto a sx
-                    #xmax,ymax,v = point_max
+
                     x,y,v = vehicle_bbox_traffic_light[0]
 
                     #Transformation
@@ -1246,9 +1206,7 @@ def exec_waypoint_nav_demo(args):
                     y_global = ego_state[1] + x*sin(ego_state[2]) + \
                                                     y*cos(ego_state[2])
                     
-                    #print("Global coordinates: ", (x_global, y_global))
                     tl_tracking.track(ego_state, (x,y), tl_detector.is_red())
-                    #kf_pos = tl_tracking.get_kf_pos()
 
 
                     nearest_tl = tl_tracking.get_nearest_tl(ego_state)
@@ -1256,7 +1214,6 @@ def exec_waypoint_nav_demo(args):
                         res, cluster_res = nearest_tl
                     visualize_point(map, x_global, y_global, zr, img_map, color=(0,225,225))
 
-                #print("Local coordinates traffic lights: ", vehicle_bbox_traffic_light)
                 #Visualize traffic light point on world
                 if vehicle_bbox_traffic_light_r is not None:
 
@@ -1275,14 +1232,15 @@ def exec_waypoint_nav_demo(args):
                     nearest_tl = tl_tracking.get_nearest_tl(ego_state)
                     if nearest_tl is not None:
                         res_r, cluster_res_r = nearest_tl
-                        #traffic_light.update(res_r[0], res_r[1], cluster_res_r)
 
                     visualize_point(map, x_globalr, y_globalr, zr, img_map, color=(225,225,0), text=False)
                     
-                print("Clusters: ", tl_tracking.get_clusters())
-                print("Nearest cluster: ", tl_tracking.get_nearest_tl(ego_state))
+
+                
                 if tl_tracking.get_nearest_tl(ego_state) is not None:
                     visualize_point(map, tl_tracking.get_nearest_tl(ego_state)[1][0], tl_tracking.get_nearest_tl(ego_state)[1][1], 1, img_map, color=(0,0,0))
+                
+                #Updating traffic light measurements
                 if vehicle_bbox_traffic_light_r is not None:
                     if res_r is not None:
                         visualize_point(map, res_r[0][0], res_r[0][1], zr, img_map, color=(238,130,238), r=10)
@@ -1291,8 +1249,8 @@ def exec_waypoint_nav_demo(args):
                         traffic_light.update(res_r[0], res_r[1], cluster_res_r)
 
 
-                    #Ho bisogno di dire che res_r deve essere None perché può darsi che il prev ok di prima era ok ma poi il res_r corrente non c'è 
-                    if res_r is None or not traffic_light._prev_ok: #Se non c'è la detection della camera destra oppure con quella non vedo bene il colore vado con la centrale 
+                    
+                    if res_r is None or not traffic_light._prev_ok: #If there isn't detection with the camera right or I can't see well the color I use the central camera 
                         if vehicle_bbox_traffic_light is not None:
                             if res is not None:
                                 visualize_point(map, res[0][0], res[0][1], zr, img_map, color=(238,130,238), r=10)
@@ -1311,17 +1269,14 @@ def exec_waypoint_nav_demo(args):
 
 
                 
-                else:
+                else: #If there aren't detections we call no_traffic_light_detection
                     traffic_light.no_traffic_light_detection(ego_state)
                 
                 if traffic_light._prev_ok==False: 
-                    print("Troppo vicino da non vedere il colore!!")
+                    #I'm too close to traffic light to see the color
                     traffic_light.no_traffic_light_detection(ego_state)
                 
-                
 
-
-                
                 ###################################################################################
 
                 
@@ -1333,51 +1288,48 @@ def exec_waypoint_nav_demo(args):
                 ego_state = [current_x, current_y, current_yaw, open_loop_speed]
 
                 ego_orientation = measurement_data.player_measurements.transform.orientation 
-                
+                # Get a possible lead vehicle if it exists
                 closest_vehicle_index=bp.check_forward_closest_vehicle(ego_state,(ego_orientation.x, ego_orientation.y),prob_obs["vehicle"]["pos"], prob_obs["vehicle"]["rot"])
-                
+                # Check for all possible future colliding pedestrians and sets just the closest one
                 bp.check_for_closest_pedestrian(ego_state,(ego_orientation.x, ego_orientation.y),prob_obs["pedestrian"]["pos"],prob_obs["pedestrian"]["rot"], prob_obs["pedestrian"]["pixel_coords"])
                 #Setting bp variables
-                bp.set_nearest_intersection(tl_tracking.find_nearest_intersection(ego_state))
+                road_handler.set_nearest_intersection(tl_tracking.find_nearest_intersection(ego_state))
                 # Set lookahead based on current speed.
-                #print(LEAD_VEHICLE_LOOKAHEAD + BP_LOOKAHEAD_TIME * open_loop_speed)
                 bp.set_lookahead(BP_LOOKAHEAD_BASE + BP_LOOKAHEAD_TIME * open_loop_speed)
-                
                 bp.set_follow_lead_vehicle_lookahead(LEAD_VEHICLE_LOOKAHEAD + BP_LOOKAHEAD_TIME * open_loop_speed)
                 # Perform a state transition in the behavioural planner.
                 bp.transition_state(waypoints, ego_state, current_speed)
 
                 # Check to see if we need to follow the lead vehicle.
-                #lead_car_idx=None
                 if closest_vehicle_index is not None:
 
                     bp.check_for_lead_vehicle(ego_state, prob_obs["vehicle"]["pos"][closest_vehicle_index])
                 else:
                     bp.check_for_lead_vehicle(ego_state, None)
                 
-                #Check if we can make an overtaking
                 
                 
                 #Visualize vehicles on map
-                img_map_copy = img_map.copy()
-                for i, v_p in enumerate(prob_obs["vehicle"]["pos"]):
-                    idx_pos = str(i) + "_" + str(int(v_p[0])) + "," + str(int(v_p[1]))
-                    visualize_point(map, v_p[0], v_p[1], 38, img_map_copy, color=(255,0,0), text=str(i))
-                for i, p_p in enumerate(prob_obs["pedestrian"]["pos"]):
-                    idx_pos = str(i) + "_" + str(int(v_p[0])) + "," + str(int(v_p[1]))
-                    visualize_point(map, p_p[0], p_p[1], 38, img_map_copy, color=(0,0,255), text=str(i))
-                visualize_point(map, ego_state[0], ego_state[1], 38, img_map_copy, color=(0,0,255))
+                if display:
+                    img_map_copy = img_map.copy()
+                    for i, v_p in enumerate(prob_obs["vehicle"]["pos"]):
+                        idx_pos = str(i) + "_" + str(int(v_p[0])) + "," + str(int(v_p[1]))
+                        visualize_point(map, v_p[0], v_p[1], 38, img_map_copy, color=(255,0,0), text=str(i))
+                    for i, p_p in enumerate(prob_obs["pedestrian"]["pos"]):
+                        idx_pos = str(i) + "_" + str(int(v_p[0])) + "," + str(int(v_p[1]))
+                        visualize_point(map, p_p[0], p_p[1], 38, img_map_copy, color=(0,0,255), text=str(i))
 
-                img_map_copy=cv2.resize(img_map_copy, (1000,1000))
-                cv2.imshow("Cars map", img_map_copy)
-                cv2.waitKey(10)
+                    visualize_point(map, ego_state[0], ego_state[1], 38, img_map_copy, color=(0,0,255))
 
+                    img_map_copy=cv2.resize(img_map_copy, (1000,1000))
+                    cv2.imshow("Cars map", img_map_copy)
+                    cv2.waitKey(10)
+
+                #If there is a lead vehicle we remove from list where we check the collisions
                 if  bp.get_follow_lead_vehicle() :
-                    #print("----Follow Lead----")
-                    #print("Idx Lead: ", closest_vehicle_index)
-                    #
+
                     lead_car_state=[prob_obs["vehicle"]["pos"][closest_vehicle_index][0], prob_obs["vehicle"]["pos"][closest_vehicle_index][1], prob_obs["vehicle"]["speed"][closest_vehicle_index]]
-                    #
+                    
                     prob_obs["vehicle"]["bounding_box"].pop(closest_vehicle_index)        
                     prob_obs["vehicle"]["pos"].pop(closest_vehicle_index)
                     prob_obs["vehicle"]["rot"].pop(closest_vehicle_index)
@@ -1401,7 +1353,7 @@ def exec_waypoint_nav_demo(args):
                     collision_check_array=[ True ]*len(paths)
                     prob_coll_pedestrian=bp.check_for_pedestrian(ego_state,prob_obs["pedestrian"]["pos"],prob_obs["pedestrian"]["bounding_box"])
                     prob_coll_vehicle=bp.check_for_vehicle(ego_state,prob_obs["vehicle"]["pos"],prob_obs["vehicle"]["bounding_box"])
-                    #print("Prob coll. vehicle: ", prob_coll_vehicle)
+
                     for bb in  prob_coll_vehicle + prob_coll_pedestrian:
                         cc = lp._collision_checker.collision_check(paths, [bb])
                         collision_check_array=list(np.array(cc) & np.array(collision_check_array))
@@ -1557,7 +1509,6 @@ def exec_waypoint_nav_demo(args):
                         lp_1d.refresh()
                         live_plot_timer.lap()
                 except:
-                    print("Exception in refresh")
                     pass
 
             # Output controller command to CARLA server
