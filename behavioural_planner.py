@@ -10,7 +10,7 @@ FOLLOW_LANE = 0
 DECELERATE_TO_STOP = 1
 STAY_STOPPED = 2
 EMERGENCY_STOP = 4
-OVERTAKING = 5
+
 
 # Stop speed threshold
 STOP_THRESHOLD = 0.03
@@ -51,16 +51,15 @@ class BehaviouralPlanner:
         if self._traffic_light is None:
             self._traffic_light = traffic_light
     
-    def get_follow_lead_vehicle(self):
-        return self._follow_lead_vehicle
-
-    
     def set_road_handler(self, road_handler):
         self._road_handler = road_handler
 
-    # Handles state transitions and computes the goal state.
+    
 
     def transition_state(self, waypoints, ego_state, closed_loop_speed):
+        """
+        Handles state transitions and computes the goal state.
+        """
         print("STATE: ", self._state)
         print("STOP FOR: ", self._stop_for)
 
@@ -102,7 +101,7 @@ class BehaviouralPlanner:
             
             d_real = closed_loop_speed**2/5
             #if the pedestrian is closer then the tf light,we have to stop for pedestrian
-            if pedestrian_ahead_found_distance < traffic_light_found_distance: #Mi voglio fermare per il pedone
+            if pedestrian_ahead_found_distance < traffic_light_found_distance: 
                 print("Add waypoint to pedestrian at distance: ", pedestrian_ahead_found_distance)              
                 goal_index=waypoint_precise_adder(waypoints,pedestrian_ahead_found_distance, closest_index, goal_index, 0.1, ego_state, offset=0)
                 self._stop_for = STOP_FOR_PEDESTRIAN
@@ -139,11 +138,10 @@ class BehaviouralPlanner:
         elif self._state == DECELERATE_TO_STOP:
             closest_len, closest_index = get_closest_index(waypoints, ego_state)
             goal_index = self._goal_index
-                        
-            #Se mi sto fermando per il pedone, quello che può capitare è che passa un pedone prima del punto
-            # per cui mi sto fermando
-            #Dato che la distanza dal goal index mi dice dove mi fermerò, se il nuovo pedone dista meno del goal index,
-            #Allora lo aggiorno
+            
+            #we have to check if there is a new pedestrian colser than the previous one. 
+            #we can do that checking the distance from goal index            
+            
             if self._stop_for==STOP_FOR_PEDESTRIAN:
                 print("I'm stopping for the pedestrian!!")
                 pedestrian_ahead_found_distance=self.distance_from_closest_pedestrian(ego_state)
@@ -151,17 +149,16 @@ class BehaviouralPlanner:
 
                 if pedestrian_ahead_found_distance is None:
                     pedestrian_ahead_found_distance=np.inf
-
-                #In questo caso o il pedone è nuovo oppure è il vecchio che si sta spostando nella mia direzione.
-                #Se è un pedone nuovo asggiungo un altro waypoint, ma se non riesco a fermarmi
-                # dove indico con questo nuovo waypoint vado in
-                # EMERGENCY STOP; altrimenti se è il vecchio calcolo la distanza da lui.
-                #Se con la decelerazione massima non riesco a fermarmi prima di dove si trova il pedone
-                #vado nello stato di emergency stop!
+                
+                #in this situation the pedestrian can be the same as before (is coming up to our vehicle)
+                #or is a new pedestrian.
+                #For both the cases we try to add a new waypoint and , if is not possible to stop before this waypoint, 
+                #we go in the EMERGENCY STOP state
+                
                 goal_distance = goal_dist - 0.1 if goal_dist > 0 else goal_dist + 0.1
                 if pedestrian_ahead_found_distance < goal_distance:#goal_dist - 0.1: 
                     d_real = closed_loop_speed**2/5
-                    #goal_index=waypoint_precise_adder(waypoints,pedestrian_ahead_found_distance, closest_index, goal_index, 0.1, ego_state, offset=0)
+                    
                     if self._pedestrian_stopped_index != self._closest_pedestrian["index"]:
                         goal_index=waypoint_precise_adder(waypoints,pedestrian_ahead_found_distance, closest_index, goal_index, 0.1, ego_state, offset=0)
                         self._pedestrian_stopped_index = self._closest_pedestrian["index"]
@@ -173,17 +170,16 @@ class BehaviouralPlanner:
 
                     if d_real > pedestrian_ahead_found_distance:
                         self._state = EMERGENCY_STOP
-
-                elif pedestrian_ahead_found_distance == np.Inf: #Se la nuova distanza dal pedone è infinita (Il pedone non c'è più)
+                #in this case the pedestrian is no more in our scope
+                elif pedestrian_ahead_found_distance == np.Inf: 
                     self._state = FOLLOW_LANE
                     self._pedestrian_stopped_index=None
                     self._stop_for=None
             
-            elif self._stop_for == STOP_FOR_TL: #Se mi ero fermato per il TL può succedere che passa un pedone prima
-                #In questo caso devo fermarmi prima ancora del pedone
-                #Dato che il TL rimane fermo, il goal index corrente è quello più vicino al semaforo,
-                #pertanto se la nuova distanza dal pedone è minore della distanza dal goal index
-                #devo mettere un waypoint alla nuova distanza
+            elif self._stop_for == STOP_FOR_TL: 
+                #if we were stopping for the trafiic light, we have to check if there is a pedestrian before our goal index
+                #that for sure was setted for the traffic light
+                #as usually, if we have no time for a decelerate, we go in emergency stop
                 print("I'm stopping for the traffic light!!")
                 pedestrian_ahead_found_distance=self.distance_from_closest_pedestrian(ego_state)
                 if pedestrian_ahead_found_distance is None:
@@ -196,7 +192,7 @@ class BehaviouralPlanner:
                     print("I want to stop at distance: ", pedestrian_ahead_found_distance)
                     print("I will stop at distance: ", d_real)
 
-                    #goal_index=waypoint_precise_adder(waypoints,pedestrian_ahead_found_distance, closest_index, goal_index, 0.1, ego_state, offset=0)
+                    
                     self._pedestrian_stopped_index = self._closest_pedestrian["index"]
                     
                     self._stop_for=STOP_FOR_PEDESTRIAN
@@ -211,13 +207,16 @@ class BehaviouralPlanner:
                         self._state = EMERGENCY_STOP
 
 
-                else: #Se non è passato un pedone prima di dove mi sto fermando controllo se devo fermarmi ancora al semaforo (vedo se è diventato verde!!)
+                else: 
+                    
+                    #if no pedestrian are in the scope, we just check if the traffic light is green (we can go in follow lane)
                     traffic_light_found_distance = self.distance_from_closest_traffic_light( ego_state, use_lookahead=False)
-                    if traffic_light_found_distance is  None: #Se mi stavo fermando per il tl ma poi la distanza diventa infinita (Il tl è verde o non è + il prossimo)
+                    if traffic_light_found_distance is  None: 
                         self._state = FOLLOW_LANE
                         self._stop_for=None   
                     else:
-                        if d_real > traffic_light_found_distance and traffic_light_found_distance <= MIN_DIST_TO_STOP + 1 : #se sto a 1 metro di min dist to stop e non mi riesco a fermare ancora in tempo allora vado in EMERGENCY STOP
+                        #if we cannot stop before, we go in emergency stop
+                        if d_real > traffic_light_found_distance and traffic_light_found_distance <= MIN_DIST_TO_STOP + 1 : 
                             self._state = EMERGENCY_STOP
 
                     
@@ -230,13 +229,14 @@ class BehaviouralPlanner:
             
             closest_len, closest_index = get_closest_index(waypoints, ego_state)
             goal_index = self._goal_index
-            if self._stop_for == STOP_FOR_PEDESTRIAN: #Se mi ero fermato per il pedone
+            #we check if there is no more the pedestrian (we go follow lane)
+            if self._stop_for == STOP_FOR_PEDESTRIAN: 
                 pedestrian_ahead_found_distance=self.distance_from_closest_pedestrian(ego_state)
                 if pedestrian_ahead_found_distance is None:
                     self._stop_for=None
                     self._state = FOLLOW_LANE
                     self._pedestrian_stopped_index=None
-
+            #we check if the traffic light is green (we go follow lane)
             elif self._stop_for == STOP_FOR_TL:
                 traffic_light_found_distance = self.distance_from_closest_traffic_light( ego_state, use_lookahead=False)
                 if traffic_light_found_distance is None:
